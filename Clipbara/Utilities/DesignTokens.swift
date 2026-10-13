@@ -117,7 +117,7 @@ enum DesignTokens {
     // MARK: - Card Grid
 
     enum Grid {
-        static let cardSpacing: CGFloat = 14
+        static let cardSpacing: CGFloat = 22
         static let horizontalPadding: CGFloat = 20
         /// Extra vertical room so the hover scale does not clip against the panel.
         static let verticalPadding: CGFloat = 18

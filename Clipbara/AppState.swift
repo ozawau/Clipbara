@@ -147,9 +147,18 @@ final class AppState {
         clipboardMonitor.skipNextChange()
         pasteService.paste(item: item, asPlainText: asPlainText)
         // ⌘V has to reach the app behind the panel, so send it once the
-        // panel is off screen and no longer the key window.
+        // panel is off screen and no longer the key window. Without
+        // Accessibility + Settings > Paste into Active App, this only copies.
         if DirectPaste.isReady {
-            hidePanel(then: { _ = DirectPaste.sendPasteShortcut() })
+            let target = panelController.pasteTargetApp
+            hidePanel(then: {
+                Task { @MainActor in
+                    // Let focus leave the panel and settle on the previous app
+                    // before synthesizing ⌘V (especially after ⇧Return).
+                    try? await Task.sleep(for: .milliseconds(60))
+                    _ = DirectPaste.sendPasteShortcut(to: target)
+                }
+            })
         } else {
             hidePanel()
         }

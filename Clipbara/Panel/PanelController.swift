@@ -18,6 +18,8 @@ final class PanelController {
     /// The screen the panel was opened on. `panel.screen` is unreliable while
     /// the panel sits flush against a screen edge next to another display.
     private var presentedScreen: NSScreen?
+    /// App that was frontmost when the panel opened — ⌘V is aimed here.
+    private(set) var pasteTargetApp: NSRunningApplication?
     private var quickLookPanel: ClipboardQuickLookPanel?
     private var quickLookItem: ClipboardItem?
     private var quickLookZoom: ImageZoomController?
@@ -112,6 +114,10 @@ final class PanelController {
         guard !isVisible else { return }
         anchorKeyboard()
         self.appState = appState
+
+        // Capture before the panel becomes key so ⌘V can return to this app.
+        let front = NSWorkspace.shared.frontmostApplication
+        pasteTargetApp = (front == .current) ? nil : front
 
         let screen = activeScreen
         let screenFrame = screen.visibleFrame
@@ -274,6 +280,7 @@ final class PanelController {
             panel.hasShadow = true
             self?.contentHost?.frame.origin.y = 0
             self?.presentedScreen = nil
+            self?.pasteTargetApp = nil
             self?.isVisible = false
             completion?()
         }
@@ -547,10 +554,17 @@ final class PanelController {
                     let isEditing = textView?.isEditable ?? true
                     let isComposing = textView?.hasMarkedText() ?? false
                     let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
-                    let arrowsOrReturn = keyCode == 123 || keyCode == 124 || keyCode == 36
+                    // Return / ⇧Return / keypad Enter paste; Delete removes the
+                    // selected card even while the search field has focus.
+                    let isReturn = keyCode == 36 || keyCode == 76
+                    let isDelete = keyCode == 51 || keyCode == 117
+                    let arrowsOrReturn = keyCode == 123 || keyCode == 124 || isReturn
                     if isEditing, !isComposing, arrowsOrReturn,
-                       mods.isEmpty || (mods == .shift && keyCode == 36) {
+                       mods.isEmpty || (mods == .shift && isReturn) {
                         return self.processKey(event)
+                    }
+                    if isEditing, !isComposing, isDelete, mods.isEmpty {
+                        return self.deleteSelectedClip()
                     }
                     // Tab leaves the search for the results, which stay filtered,
                     // so Space previews and the arrows move as usual. Typing a
@@ -779,7 +793,7 @@ final class PanelController {
             }
             return true
 
-        case 36: // Return pastes; ⇧Return pastes plain text
+        case 36, 76: // Return / keypad Enter paste; ⇧Return pastes plain text
             let asPlainText = event.modifierFlags.contains(.shift)
             if let item = quickLookItem {
                 appState.paste(item, asPlainText: asPlainText)
