@@ -92,33 +92,45 @@ struct NavigationBarView: View {
     // MARK: - Navigation Bar (default state)
 
     private var navigationBar: some View {
-        HStack(spacing: 12) {
-            searchField
-
-            toolbarDivider
+        ZStack {
+            HStack(spacing: 10) {
+                searchAndFilters
+                Spacer(minLength: 8)
+                actionGroup
+            }
 
             tabGroup
-                .frame(minWidth: 120)
-                .layoutPriority(1)
-
-            Spacer(minLength: 8)
-
-            toolbarDivider
-
-            actionGroup
+                .frame(maxWidth: 520)
         }
         .padding(.horizontal, DesignTokens.Nav.horizontalPadding)
     }
 
+    private var searchAndFilters: some View {
+        HStack(spacing: 8) {
+            searchField
+            typeFilterMenu
+            dateFilterMenu
+            if appState.searchState.hasActiveFilters {
+                clearFiltersButton
+            }
+        }
+    }
+
     private var tabGroup: some View {
-        ScrollViewReader { proxy in
+        // Read so color-dot taps redraw the tabs.
+        let _ = appState.tabColorRevision
+        return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     navTab(
                         label: String(localized: "History"),
-                        icon: "clock",
+                        accentColor: TabColorStore.historyColor(),
                         isActive: appState.selectedTab == .history,
-                        shortcutNumber: 1
+                        shortcutNumber: 1,
+                        onCycleColor: {
+                            TabColorStore.cycleHistoryColor()
+                            appState.noteTabColorChanged()
+                        }
                     ) {
                         appState.panelController.selectTab(.history)
                     }
@@ -134,10 +146,14 @@ struct NavigationBarView: View {
                     ForEach(Array(pinboards.enumerated()), id: \.element.id) { index, pinboard in
                         navTab(
                             label: pinboard.name,
-                            icon: "folder",
+                            accentColor: TabColorStore.color(for: pinboard.id),
                             isActive: appState.selectedTab == .pinboard(pinboard.id),
                             isDropTargeted: targetedPinboardID == pinboard.id,
-                            shortcutNumber: index + 2 <= 9 ? index + 2 : nil
+                            shortcutNumber: index + 2 <= 9 ? index + 2 : nil,
+                            onCycleColor: {
+                                TabColorStore.cycleColor(for: pinboard.id)
+                                appState.noteTabColorChanged()
+                            }
                         ) {
                             appState.panelController.selectTab(.pinboard(pinboard.id))
                         }
@@ -228,12 +244,6 @@ struct NavigationBarView: View {
         }
     }
 
-    private var toolbarDivider: some View {
-        Rectangle()
-            .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.10))
-            .frame(width: 1, height: 20)
-    }
-
     // MARK: - Search Field
 
     private var searchField: some View {
@@ -269,23 +279,92 @@ struct NavigationBarView: View {
         )
     }
 
+    private var typeFilterMenu: some View {
+        FilterDropdown(
+            title: appState.searchState.contentTypeFilterLabel,
+            isActive: !appState.searchState.selectedContentTypes.isEmpty,
+            colorScheme: colorScheme
+        ) {
+            ForEach(ContentType.allCases, id: \.self) { type in
+                Button {
+                    appState.searchState.toggleContentType(type)
+                } label: {
+                    HStack {
+                        Text(type.displayName)
+                        Spacer(minLength: 12)
+                        if appState.searchState.selectedContentTypes.contains(type) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+            if !appState.searchState.selectedContentTypes.isEmpty {
+                Divider()
+                Button("Clear Type Filter") {
+                    appState.searchState.selectedContentTypes = []
+                    appState.searchState.selectedIndex = nil
+                }
+            }
+        }
+    }
+
+    private var dateFilterMenu: some View {
+        FilterDropdown(
+            title: appState.searchState.dateFilterLabel,
+            isActive: appState.searchState.dateFilter != .all,
+            colorScheme: colorScheme
+        ) {
+            ForEach(SearchState.DateFilter.allCases, id: \.self) { filter in
+                Button {
+                    appState.searchState.dateFilter = filter
+                    appState.searchState.selectedIndex = nil
+                } label: {
+                    HStack {
+                        Text(filter.displayName)
+                        Spacer(minLength: 12)
+                        if appState.searchState.dateFilter == filter {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var clearFiltersButton: some View {
+        Button {
+            appState.searchState.clearFilters()
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(DesignTokens.Nav.inactiveTextColor(for: colorScheme))
+                .frame(width: DesignTokens.Nav.tabHeight, height: DesignTokens.Nav.tabHeight)
+                .background(DesignTokens.Nav.searchBackground(for: colorScheme))
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Clear Filters")
+    }
+
     // MARK: - Tab Component
 
     private func navTab(
         label: String,
-        icon: String? = nil,
+        accentColor: Color,
         isActive: Bool,
         isDropTargeted: Bool = false,
         shortcutNumber: Int? = nil,
+        onCycleColor: @escaping () -> Void,
         action: @escaping () -> Void
     ) -> some View {
         NavTabButton(
             label: label,
-            icon: icon,
+            accentColor: accentColor,
             isActive: isActive,
             isDropTargeted: isDropTargeted,
             shortcutNumber: appState.showsTabShortcutHints ? shortcutNumber : nil,
             colorScheme: colorScheme,
+            onCycleColor: onCycleColor,
             action: action
         )
     }
@@ -300,10 +379,7 @@ struct NavigationBarView: View {
     }
 
     private var optionsMenuButton: some View {
-        OptionsMenuButton(
-            colorScheme: colorScheme,
-            searchState: appState.searchState
-        )
+        OptionsMenuButton(colorScheme: colorScheme)
     }
 
     private var pinnedItemIDs: Set<UUID> {
@@ -353,6 +429,8 @@ struct NavigationBarView: View {
         let pinboard = Pinboard(name: name, displayOrder: nextOrder)
         modelContext.insert(pinboard)
         try? modelContext.save()
+        TabColorStore.assignDefaultColor(for: pinboard.id, existingIDs: pinboards.map(\.id))
+        appState.noteTabColorChanged()
         newPinboardName = ""
         // Keep shortcut positions current until @Query publishes the insert.
         appState.orderedPinboardIDs = pinboards.filter { $0.id != pinboard.id }.map(\.id) + [pinboard.id]
@@ -462,12 +540,13 @@ struct NavigationBarView: View {
 
 private struct NavTabButton: View {
     let label: String
-    let icon: String?
+    let accentColor: Color
     let isActive: Bool
     let isDropTargeted: Bool
-    /// Shown in place of the icon while ⌘ is held (#53).
+    /// Shown in place of the color dot while ⌘ is held (#53).
     let shortcutNumber: Int?
     let colorScheme: ColorScheme
+    let onCycleColor: () -> Void
     let action: () -> Void
 
     @State private var isHovered = false
@@ -489,27 +568,35 @@ private struct NavTabButton: View {
     }
 
     private var tabLabel: some View {
-            HStack(spacing: 5) {
-                if let icon {
-                    // The number sits over the hidden icon so the tabs keep
-                    // their widths and don't shift while ⌘ is held.
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .medium))
-                        .opacity(shortcutNumber == nil ? 1 : 0)
-                        .overlay {
-                            if let shortcutNumber {
-                                Text(verbatim: "\(shortcutNumber)")
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                                    .monospacedDigit()
-                                    .frame(width: 14, height: 14)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                                            .strokeBorder(.foreground.opacity(0.55), lineWidth: 1)
-                                    )
-                                    .transition(.opacity)
-                            }
-                        }
+            HStack(spacing: 6) {
+                // Number overlay replaces the dot while ⌘ is held so widths stay put.
+                ZStack {
+                    Button(action: onCycleColor) {
+                        Circle()
+                            .fill(accentColor)
+                            .frame(width: DesignTokens.Nav.dotSize, height: DesignTokens.Nav.dotSize)
+                            .shadow(color: accentColor.opacity(isActive ? 0.55 : 0.25), radius: isActive ? 4 : 2)
+                            .frame(width: 18, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(shortcutNumber == nil ? 1 : 0)
+                    .help("Change color")
+                    .allowsHitTesting(shortcutNumber == nil)
+
+                    if let shortcutNumber {
+                        Text(verbatim: "\(shortcutNumber)")
+                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .frame(width: 14, height: 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                                    .strokeBorder(.foreground.opacity(0.55), lineWidth: 1)
+                            )
+                            .transition(.opacity)
+                    }
                 }
+                .frame(width: 14, height: 14)
 
                 Text(label)
                     .font(isActive ? DesignTokens.Nav.activeFont : DesignTokens.Nav.inactiveFont)
@@ -524,7 +611,7 @@ private struct NavTabButton: View {
             .frame(height: DesignTokens.Nav.tabHeight)
             .background(
                 isDropTargeted
-                    ? Color.accentColor.opacity(colorScheme == .dark ? 0.24 : 0.16)
+                    ? accentColor.opacity(colorScheme == .dark ? 0.28 : 0.18)
                     : isActive || isHovered
                     ? DesignTokens.Nav.activeBackground(for: colorScheme)
                     : Color.clear
@@ -532,11 +619,63 @@ private struct NavTabButton: View {
             .overlay(
                 RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous)
                     .strokeBorder(
-                        isDropTargeted ? Color.accentColor.opacity(0.7) : Color.clear,
-                        lineWidth: 1
+                        isDropTargeted
+                            ? accentColor.opacity(0.8)
+                            : (isActive ? accentColor.opacity(0.45) : Color.clear),
+                        lineWidth: isActive || isDropTargeted ? 1 : 0
                     )
             )
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous))
+    }
+}
+
+// MARK: - Filter dropdown (same height as the search field)
+
+private struct FilterDropdown<Content: View>: View {
+    let title: String
+    let isActive: Bool
+    let colorScheme: ColorScheme
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        Menu {
+            content()
+        } label: {
+            HStack(spacing: 5) {
+                Text(title)
+                    .font(.system(size: 12, weight: isActive ? .semibold : .medium))
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .opacity(0.55)
+            }
+            .foregroundStyle(
+                isActive
+                    ? DesignTokens.Nav.activeTextColor(for: colorScheme)
+                    : DesignTokens.Nav.inactiveTextColor(for: colorScheme)
+            )
+            .padding(.horizontal, 10)
+            .frame(minWidth: DesignTokens.Nav.filterMinWidth)
+            .frame(height: DesignTokens.Nav.tabHeight)
+            .background(
+                isActive
+                    ? DesignTokens.Selection.borderColor.opacity(colorScheme == .dark ? 0.22 : 0.12)
+                    : DesignTokens.Nav.searchBackground(for: colorScheme)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.Nav.tabCornerRadius, style: .continuous)
+                    .strokeBorder(
+                        isActive
+                            ? DesignTokens.Selection.borderColor.opacity(0.55)
+                            : Color.white.opacity(colorScheme == .dark ? 0.08 : 0.07),
+                        lineWidth: 0.75
+                    )
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize(horizontal: true, vertical: true)
     }
 }
 
@@ -573,9 +712,6 @@ private struct NavIconButton: View {
 
 private struct OptionsMenuButton: View {
     let colorScheme: ColorScheme
-    let searchState: SearchState
-
-    @State private var isHovered = false
 
     var body: some View {
         NavIconButton(
@@ -590,57 +726,15 @@ private struct OptionsMenuButton: View {
     private func showMenu() {
         let menu = NSMenu()
 
-        // Filter by Type submenu
-        let typeMenu = NSMenu()
-        for type in ContentType.allCases {
-            let item = NSMenuItem(title: type.displayName, action: nil, keyEquivalent: "")
-            let isSelected = searchState.selectedContentTypes.contains(type)
-            if isSelected {
-                item.state = .on
-            }
-            item.target = MenuActionTarget.shared
-            item.representedObject = MenuAction.toggleContentType(type, searchState)
-            item.action = #selector(MenuActionTarget.performAction(_:))
-            typeMenu.addItem(item)
-        }
-        if !searchState.selectedContentTypes.isEmpty {
-            typeMenu.addItem(.separator())
-            let clearItem = NSMenuItem(title: String(localized: "Clear Filters"), action: nil, keyEquivalent: "")
-            clearItem.target = MenuActionTarget.shared
-            clearItem.representedObject = MenuAction.clearContentTypes(searchState)
-            clearItem.action = #selector(MenuActionTarget.performAction(_:))
-            typeMenu.addItem(clearItem)
-        }
-        let typeMenuItem = NSMenuItem(title: String(localized: "Filter by Type"), action: nil, keyEquivalent: "")
-        typeMenuItem.submenu = typeMenu
-        menu.addItem(typeMenuItem)
-
-        // Filter by Date submenu
-        let dateMenu = NSMenu()
-        for filter in SearchState.DateFilter.allCases {
-            let item = NSMenuItem(title: filter.displayName, action: nil, keyEquivalent: "")
-            if searchState.dateFilter == filter {
-                item.state = .on
-            }
-            item.target = MenuActionTarget.shared
-            item.representedObject = MenuAction.setDateFilter(filter, searchState)
-            item.action = #selector(MenuActionTarget.performAction(_:))
-            dateMenu.addItem(item)
-        }
-        let dateMenuItem = NSMenuItem(title: String(localized: "Filter by Date"), action: nil, keyEquivalent: "")
-        dateMenuItem.submenu = dateMenu
-        menu.addItem(dateMenuItem)
-
         // The same setting as Settings > General, surfaced where pasting
         // happens (#49), with the one-off Shift switch spelled out below it.
-        menu.addItem(.separator())
         let plainTextItem = NSMenuItem(title: String(localized: "Always Paste as Plain Text"), action: nil, keyEquivalent: "")
         plainTextItem.state = UserDefaults.standard.bool(forKey: PasteService.alwaysPlainTextDefaultsKey) ? .on : .off
         plainTextItem.target = MenuActionTarget.shared
         plainTextItem.representedObject = MenuAction.toggleAlwaysPlainText
         plainTextItem.action = #selector(MenuActionTarget.performAction(_:))
         menu.addItem(plainTextItem)
-        let shiftHint = NSMenuItem(title: String(localized: "Hold \u{21e7} while pasting to switch for a single paste."), action: nil, keyEquivalent: "")
+        let shiftHint = NSMenuItem(title: String(localized: "Return pastes · \u{21e7}Return pastes plain text"), action: nil, keyEquivalent: "")
         shiftHint.isEnabled = false
         menu.addItem(shiftHint)
 
@@ -661,9 +755,6 @@ private struct OptionsMenuButton: View {
 // MARK: - NSMenu action helpers
 
 private enum MenuAction {
-    case toggleContentType(ContentType, SearchState)
-    case clearContentTypes(SearchState)
-    case setDateFilter(SearchState.DateFilter, SearchState)
     case toggleAlwaysPlainText
     case openSettings(AppState)
 }
@@ -676,12 +767,6 @@ private final class MenuActionTarget: NSObject {
         guard let action = sender.representedObject as? MenuAction else { return }
         Task { @MainActor in
             switch action {
-            case .toggleContentType(let type, let state):
-                state.toggleContentType(type)
-            case .clearContentTypes(let state):
-                state.selectedContentTypes = []
-            case .setDateFilter(let filter, let state):
-                state.dateFilter = filter
             case .toggleAlwaysPlainText:
                 let key = PasteService.alwaysPlainTextDefaultsKey
                 UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: key), forKey: key)

@@ -47,13 +47,7 @@ final class PanelController {
         return setting && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    private let baseHeight: CGFloat = 280
-    private let minimumPanelWidth: CGFloat = 720
-    private let maximumScreenWidthRatio: CGFloat = 0.90
-    private let estimatedCardWidth: CGFloat = 228
-    private let estimatedCardSpacing: CGFloat = 8
-    private let contentHorizontalPadding: CGFloat = 32
-    private let maximumVisibleCardCount = 6
+    private let baseHeight: CGFloat = 360
 
     // MARK: - Screen Selection
 
@@ -97,7 +91,7 @@ final class PanelController {
         // the screen would hand it to a display stacked underneath before the
         // first hotkey press ever happens. It stays invisible via `alphaValue`.
         let screenFrame = activeScreen.visibleFrame
-        let frame = panelFrame(in: screenFrame, itemCount: 0, y: screenFrame.origin.y)
+        let frame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
 
         let warm = ClipbaraPanel(contentRect: frame)
         warm.alphaValue = 0
@@ -121,8 +115,7 @@ final class PanelController {
 
         let screen = activeScreen
         let screenFrame = screen.visibleFrame
-        let itemCount = visibleItemCount(modelContainer: modelContainer, selectedTab: appState.selectedTab)
-        let endFrame = panelFrame(in: screenFrame, itemCount: itemCount, y: screenFrame.origin.y)
+        let endFrame = panelFrame(in: screenFrame, y: screenFrame.origin.y)
         presentedScreen = screen
 
         if panel == nil {
@@ -196,12 +189,15 @@ final class PanelController {
         }
     }
 
+    /// Kept for call sites that used to grow the panel with the card count.
+    /// Width is always the full screen, so this is a no-op unless the display changed.
     func resizeToContentItemCount(_ itemCount: Int, animated: Bool = true) {
+        _ = itemCount
         guard isVisible, let panel else { return }
 
         let screen = presentedScreen ?? panel.screen ?? activeScreen
         let screenFrame = screen.visibleFrame
-        let targetFrame = panelFrame(in: screenFrame, itemCount: itemCount, y: panel.frame.origin.y)
+        let targetFrame = panelFrame(in: screenFrame, y: panel.frame.origin.y)
 
         let currentTarget = resizeTargetFrame ?? panel.frame
         guard abs(currentTarget.width - targetFrame.width) > 1 ||
@@ -532,7 +528,7 @@ final class PanelController {
                         zoom.perform(action)
                         return true
                     }
-                    return self.processKey(keyCode)
+                    return self.processKey(event)
                 }
 
                 // Check if a text field is focused (search bar) - let it handle the event
@@ -540,19 +536,21 @@ final class PanelController {
                    firstResponder is NSTextView || firstResponder is NSTextField {
                     // Still handle Escape to close search/panel
                     if keyCode == 53 {
-                        return self.processKey(keyCode)
+                        return self.processKey(event)
                     }
                     // Results sit in a sideways row, so while typing a search
-                    // ←/→ move between them and Return pastes the selected one.
+                    // ←/→ move between them and Return / ⇧Return pastes.
                     // Left to the field: modified keys (text selection), an
                     // input method still composing (Korean), and read-only
                     // text such as a preview's selectable text.
                     let textView = firstResponder as? NSTextView
                     let isEditing = textView?.isEditable ?? true
                     let isComposing = textView?.hasMarkedText() ?? false
-                    let isPlain = event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty
-                    if isEditing, !isComposing, isPlain, keyCode == 123 || keyCode == 124 || keyCode == 36 {
-                        return self.processKey(keyCode)
+                    let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+                    let arrowsOrReturn = keyCode == 123 || keyCode == 124 || keyCode == 36
+                    if isEditing, !isComposing, arrowsOrReturn,
+                       mods.isEmpty || (mods == .shift && keyCode == 36) {
+                        return self.processKey(event)
                     }
                     // Tab leaves the search for the results, which stay filtered,
                     // so Space previews and the arrows move as usual. Typing a
@@ -584,7 +582,7 @@ final class PanelController {
                     return true
                 }
 
-                return self.processKey(keyCode)
+                return self.processKey(event)
             }
             return handled ? nil : event
         }
@@ -702,8 +700,9 @@ final class PanelController {
         return true
     }
 
-    private func processKey(_ keyCode: UInt16) -> Bool {
+    private func processKey(_ event: NSEvent) -> Bool {
         guard let appState, isVisible else { return false }
+        let keyCode = event.keyCode
         let items = appState.currentFilteredItems
         let maxIndex = items.count - 1
 
@@ -780,15 +779,16 @@ final class PanelController {
             }
             return true
 
-        case 36: // Return - paste
+        case 36: // Return pastes; ⇧Return pastes plain text
+            let asPlainText = event.modifierFlags.contains(.shift)
             if let item = quickLookItem {
-                appState.paste(item)
+                appState.paste(item, asPlainText: asPlainText)
                 return true
             }
 
             guard let idx = appState.searchState.selectedIndex,
                   idx < items.count else { return false }
-            appState.paste(items[idx])
+            appState.paste(items[idx], asPlainText: asPlainText)
             return true
 
         default:
@@ -880,26 +880,6 @@ final class PanelController {
         }
     }
 
-    private func visibleItemCount(modelContainer: ModelContainer, selectedTab: PanelTab) -> Int {
-        let context = modelContainer.mainContext
-
-        switch selectedTab {
-        case .history:
-            let descriptor = FetchDescriptor<ClipboardItem>()
-            return (try? context.fetchCount(descriptor)) ?? 0
-
-        case .pinboard(let pinboardId):
-            var descriptor = FetchDescriptor<Pinboard>(
-                predicate: #Predicate { pinboard in
-                    pinboard.id == pinboardId
-                }
-            )
-            descriptor.fetchLimit = 1
-            guard let pinboard = try? context.fetch(descriptor).first else { return 0 }
-            return pinboard.entries.filter { !$0.isDeleted && $0.clipboardItem != nil }.count
-        }
-    }
-
     /// Wraps the SwiftUI content in a plain container so it can be offset
     /// inside the panel. Anything pushed outside the panel frame is clipped by
     /// the window surface, which is what makes the slide read as a reveal.
@@ -926,28 +906,13 @@ final class PanelController {
         return container
     }
 
-    private func panelFrame(in screenFrame: NSRect, itemCount: Int, y: CGFloat) -> NSRect {
-        let panelWidth = targetPanelWidth(for: itemCount, screenWidth: screenFrame.width)
-        let panelX = screenFrame.midX - panelWidth / 2
-
-        return NSRect(
-            x: panelX,
+    private func panelFrame(in screenFrame: NSRect, y: CGFloat) -> NSRect {
+        // Always span the full usable screen width so the shelf reads edge to edge.
+        NSRect(
+            x: screenFrame.origin.x,
             y: y,
-            width: panelWidth,
+            width: screenFrame.width,
             height: baseHeight
         )
-    }
-
-    private func targetPanelWidth(for itemCount: Int, screenWidth: CGFloat) -> CGFloat {
-        let screenMaxWidth = max(360, screenWidth - 48)
-        let maxWidth = min(screenMaxWidth, max(minimumPanelWidth, screenWidth * maximumScreenWidthRatio))
-        let minWidth = min(minimumPanelWidth, maxWidth)
-        let visibleCardCount = min(max(itemCount, 1), maximumVisibleCardCount)
-        let cardContentWidth =
-            CGFloat(visibleCardCount) * estimatedCardWidth +
-            CGFloat(max(visibleCardCount - 1, 0)) * estimatedCardSpacing +
-            contentHorizontalPadding
-
-        return min(max(minWidth, cardContentWidth), maxWidth)
     }
 }

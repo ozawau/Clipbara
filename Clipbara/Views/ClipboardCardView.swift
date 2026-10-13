@@ -161,11 +161,11 @@ struct ClipboardCardView: View {
                 : (isHovered ? DesignTokens.Selection.hoverShadowRadius : DesignTokens.Selection.defaultShadowRadius),
             y: isSelected ? 6 : (isHovered ? 5 : 2)
         )
-        .scaleEffect(isSelected ? 1.01 : (isHovered ? DesignTokens.Selection.hoverScale : 1.0))
-        .offset(y: isHovered && !isSelected ? DesignTokens.Selection.hoverLift : 0)
-        .brightness(isHovered && !isSelected ? 0.04 : 0)
-        .zIndex(isHovered ? 1 : 0)
-        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isHovered)
+        .scaleEffect(isSelected ? 1.03 : (isHovered ? DesignTokens.Selection.hoverScale : 1.0))
+        .offset(y: isHovered ? DesignTokens.Selection.hoverLift : (isSelected ? -2 : 0))
+        .brightness(isHovered && !isSelected ? 0.06 : 0)
+        .zIndex(isHovered || isSelected ? 2 : 0)
+        .animation(.spring(response: 0.26, dampingFraction: 0.70), value: isHovered)
         .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
 

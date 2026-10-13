@@ -107,25 +107,40 @@ enum DesignTokens {
         static let selectedShadowRadius: CGFloat = 12
         static let defaultShadowOpacity: Double = 0.06
         static let defaultShadowRadius: CGFloat = 2
-        static let hoverShadowOpacity: Double = 0.20
-        static let hoverShadowRadius: CGFloat = 12
-        static let hoverScale: CGFloat = 1.035
-        static let hoverLift: CGFloat = -3
-        static let hoverBorderWidth: CGFloat = 1.25
+        static let hoverShadowOpacity: Double = 0.28
+        static let hoverShadowRadius: CGFloat = 18
+        static let hoverScale: CGFloat = 1.10
+        static let hoverLift: CGFloat = -10
+        static let hoverBorderWidth: CGFloat = 1.75
+    }
+
+    // MARK: - Card Grid
+
+    enum Grid {
+        static let cardSpacing: CGFloat = 14
+        static let horizontalPadding: CGFloat = 20
+        /// Extra vertical room so the hover scale does not clip against the panel.
+        static let verticalPadding: CGFloat = 18
+        static let minCardHeight: CGFloat = 200
+        static let maxCardHeight: CGFloat = 248
+        static let minCardWidth: CGFloat = 236
+        static let maxCardWidth: CGFloat = 288
+        static let cardAspect: CGFloat = 1.18
     }
 
     // MARK: - Navigation Bar
 
     enum Nav {
-        static let height: CGFloat = 44
+        static let height: CGFloat = 48
         static let horizontalPadding: CGFloat = 16
-        static let tabHeight: CGFloat = 28
+        static let tabHeight: CGFloat = 30
         static let tabCornerRadius: CGFloat = 8
         static let activeFont: Font = .system(size: 13, weight: .medium)
         static let inactiveFont: Font = .system(size: 13, weight: .regular)
-        static let dotSize: CGFloat = 8
+        static let dotSize: CGFloat = 9
         static let searchIconSize: CGFloat = 16
-        static let searchWidth: CGFloat = 260
+        static let searchWidth: CGFloat = 220
+        static let filterMinWidth: CGFloat = 108
 
         static func activeBackground(for colorScheme: ColorScheme) -> Color {
             colorScheme == .dark

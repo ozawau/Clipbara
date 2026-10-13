@@ -28,6 +28,8 @@ final class AppState {
     var previewItem: ClipboardItem?
     var panelToast: PanelToast?
     var panelPresentationID = 0
+    /// Bumped when a tab accent color changes so the nav bar refreshes.
+    var tabColorRevision = 0
     var draggedClipboardItemID: UUID?
     /// Set while a card is dragged out of a pinboard, so dropping it on
     /// another pinboard's tab moves it there instead of copying it.
@@ -116,6 +118,10 @@ final class AppState {
 
     func markPanelPresented() {
         panelPresentationID += 1
+    }
+
+    func noteTabColorChanged() {
+        tabColorRevision += 1
     }
 
     func selectForPreview(_ item: ClipboardItem?) {

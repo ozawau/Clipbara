@@ -74,6 +74,30 @@ final class SearchState {
         debounceTask?.cancel()
     }
 
+    func clearFilters() {
+        selectedContentTypes = []
+        dateFilter = .all
+        selectedIndex = nil
+    }
+
+    var hasActiveFilters: Bool {
+        !selectedContentTypes.isEmpty || dateFilter != .all
+    }
+
+    var contentTypeFilterLabel: String {
+        if selectedContentTypes.isEmpty {
+            return String(localized: "Type")
+        }
+        if selectedContentTypes.count == 1, let only = selectedContentTypes.first {
+            return only.displayName
+        }
+        return String(localized: "Type (\(selectedContentTypes.count))")
+    }
+
+    var dateFilterLabel: String {
+        dateFilter == .all ? String(localized: "Date") : dateFilter.displayName
+    }
+
     func toggleContentType(_ type: ContentType) {
         if selectedContentTypes.contains(type) {
             selectedContentTypes.remove(type)

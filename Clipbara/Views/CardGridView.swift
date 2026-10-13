@@ -22,13 +22,19 @@ struct CardGridView: View {
                 )
             } else {
                 GeometryReader { geo in
-                    let cardH = min(max(geo.size.height - 26, 164), 188)
-                    let cardW = min(max(cardH * 1.16, 206), 228)
+                    let cardH = min(
+                        max(geo.size.height - DesignTokens.Grid.verticalPadding * 2, DesignTokens.Grid.minCardHeight),
+                        DesignTokens.Grid.maxCardHeight
+                    )
+                    let cardW = min(
+                        max(cardH * DesignTokens.Grid.cardAspect, DesignTokens.Grid.minCardWidth),
+                        DesignTokens.Grid.maxCardWidth
+                    )
                     let rows = [GridItem(.fixed(cardH), spacing: 10)]
 
                     ScrollViewReader { proxy in
                         ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHGrid(rows: rows, spacing: 8) {
+                            LazyHGrid(rows: rows, spacing: DesignTokens.Grid.cardSpacing) {
                                 ForEach(filteredItems.indices, id: \.self) { index in
                                     let item = filteredItems[index]
                                     ClipboardCardView(
@@ -51,8 +57,8 @@ struct CardGridView: View {
                                     .id(item.id)
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
+                            .padding(.horizontal, DesignTokens.Grid.horizontalPadding)
+                            .padding(.vertical, DesignTokens.Grid.verticalPadding)
                         }
                         .onChange(of: appState.searchState.selectedIndex) { _, newIndex in
                             if let idx = newIndex, idx < filteredItems.count {
