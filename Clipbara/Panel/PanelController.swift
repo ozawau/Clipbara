@@ -554,17 +554,14 @@ final class PanelController {
                     let isEditing = textView?.isEditable ?? true
                     let isComposing = textView?.hasMarkedText() ?? false
                     let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
-                    // Return / ⇧Return / keypad Enter paste; Delete removes the
-                    // selected card even while the search field has focus.
+                    // Return / ⇧Return / keypad Enter paste. Delete stays with
+                    // the field so it edits the query; after Tab to the results
+                    // it removes the selected card as usual.
                     let isReturn = keyCode == 36 || keyCode == 76
-                    let isDelete = keyCode == 51 || keyCode == 117
                     let arrowsOrReturn = keyCode == 123 || keyCode == 124 || isReturn
                     if isEditing, !isComposing, arrowsOrReturn,
                        mods.isEmpty || (mods == .shift && isReturn) {
                         return self.processKey(event)
-                    }
-                    if isEditing, !isComposing, isDelete, mods.isEmpty {
-                        return self.deleteSelectedClip()
                     }
                     // Tab leaves the search for the results, which stay filtered,
                     // so Space previews and the arrows move as usual. Typing a
