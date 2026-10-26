@@ -39,13 +39,19 @@ struct CardGridView: View {
                                     let item = filteredItems[index]
                                     ClipboardCardView(
                                         item: item,
-                                        isSelected: appState.searchState.selectedIndex == index,
+                                        isSelected: appState.searchState.isSelected(index),
                                         searchText: appState.searchState.debouncedSearchText,
                                         cardWidth: cardW,
                                         cardHeight: cardH,
                                         pinboards: pinboards,
-                                        onSelect: { _ in
-                                            appState.searchState.selectedIndex = index
+                                        onSelect: { _, mods in
+                                            if mods.contains(.command) {
+                                                appState.searchState.commandSelect(index)
+                                            } else if mods.contains(.shift) {
+                                                appState.searchState.shiftSelect(index)
+                                            } else {
+                                                appState.searchState.selectSingle(index)
+                                            }
                                         },
                                         onPaste: { selected in
                                             appState.paste(selected)
@@ -120,10 +126,12 @@ struct CardGridView: View {
         let remainingCount = max(filteredItems.count - 1, 0)
         guard remainingCount > 0 else {
             appState.searchState.selectedIndex = nil
+            appState.searchState.selectedIndices = []
+            appState.searchState.selectionAnchor = nil
             return
         }
 
-        appState.searchState.selectedIndex = min(deletedIndex, remainingCount - 1)
+        appState.searchState.selectSingle(min(deletedIndex, remainingCount - 1))
     }
 }
 

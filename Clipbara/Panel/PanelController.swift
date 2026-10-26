@@ -516,6 +516,8 @@ final class PanelController {
         if quickLookPanel != nil { hideQuickLook() }
         appState.selectForPreview(nil)
         appState.searchState.selectedIndex = nil
+        appState.searchState.selectedIndices = []
+        appState.searchState.selectionAnchor = nil
         appState.currentFilteredItems = []
         appState.selectedTab = tab
     }
@@ -692,7 +694,7 @@ final class PanelController {
         guard let panel, let appState else { return }
         panel.makeFirstResponder(nil)
         if appState.searchState.selectedIndex == nil, !appState.currentFilteredItems.isEmpty {
-            appState.searchState.selectedIndex = 0
+            appState.searchState.selectSingle(0)
         }
     }
 
@@ -723,7 +725,7 @@ final class PanelController {
     func beginEditing(_ item: ClipboardItem) {
         guard let appState, AppState.canEdit(item) else { return }
         if let idx = appState.currentFilteredItems.firstIndex(where: { $0.id == item.id }) {
-            appState.searchState.selectedIndex = idx
+            appState.searchState.selectSingle(idx)
         }
         showQuickLook(item: item)
         appState.editingClipID = item.id
@@ -745,25 +747,31 @@ final class PanelController {
         return true
     }
 
-    /// Deletes the selected card from history, or on a pinboard tab removes
-    /// it from that pinboard only. ⌘Z restores it (#45).
+    /// Deletes the selected card(s) from history, or on a pinboard tab removes
+    /// them from that pinboard only. ⌘Z restores one at a time (#45).
     private func deleteSelectedClip() -> Bool {
-        guard let appState, appState.previewItem == nil,
-              let idx = appState.searchState.selectedIndex,
-              idx < appState.currentFilteredItems.count else { return false }
-        let item = appState.currentFilteredItems[idx]
+        guard let appState, appState.previewItem == nil else { return false }
+        let indices = appState.searchState.effectiveSelectedIndices
+            .filter { $0 < appState.currentFilteredItems.count }
+        guard !indices.isEmpty else { return false }
+        let items = indices.map { appState.currentFilteredItems[$0] }
+
         switch appState.selectedTab {
         case .history:
-            appState.deleteClip(item)
+            appState.deleteClips(items)
         case .pinboard(let pinboardID):
-            let itemID = item.id
-            guard let entry = item.modelContext.flatMap({ context in
-                try? context.fetch(FetchDescriptor<PinboardEntry>(
-                    predicate: #Predicate { $0.clipboardItem?.id == itemID && $0.pinboard?.id == pinboardID }
-                )).first
-            }) else { return false }
-            appState.removeFromPinboard(entry)
+            let entries: [PinboardEntry] = items.compactMap { item in
+                let itemID = item.id
+                return item.modelContext.flatMap { context in
+                    try? context.fetch(FetchDescriptor<PinboardEntry>(
+                        predicate: #Predicate { $0.clipboardItem?.id == itemID && $0.pinboard?.id == pinboardID }
+                    )).first
+                }
+            }
+            guard !entries.isEmpty else { return false }
+            appState.removeFromPinboard(entries)
         }
+        appState.searchState.clearMultiSelection()
         return true
     }
 
@@ -788,7 +796,7 @@ final class PanelController {
             // The card under the pointer wins over the keyboard selection,
             // and becomes the selection so arrows continue from it (#26).
             if let idx = pointedCardIndex(in: items) {
-                appState.searchState.selectedIndex = idx
+                appState.searchState.selectSingle(idx)
                 showQuickLook(item: items[idx])
                 return true
             }
@@ -808,7 +816,17 @@ final class PanelController {
             }
             if appState.previewItem != nil {
                 appState.searchState.selectedIndex = nil
+                appState.searchState.selectedIndices = []
+                appState.searchState.selectionAnchor = nil
                 appState.selectForPreview(nil)
+                return true
+            }
+            if appState.searchState.isMultiSelecting {
+                if let idx = appState.searchState.selectedIndex {
+                    appState.searchState.selectSingle(idx)
+                } else {
+                    appState.searchState.clearMultiSelection()
+                }
                 return true
             }
             if appState.searchState.isActive {
@@ -853,9 +871,14 @@ final class PanelController {
                 return true
             }
 
-            guard let idx = appState.searchState.selectedIndex,
-                  idx < items.count else { return false }
-            appState.paste(items[idx], asPlainText: asPlainText)
+            let indices = appState.searchState.effectiveSelectedIndices.filter { $0 < items.count }
+            guard !indices.isEmpty else { return false }
+            if indices.count > 1 {
+                // Multi-select: join card text with newlines (Shift does not change this).
+                appState.pasteJoined(indices.map { items[$0] })
+            } else {
+                appState.paste(items[indices[0]], asPlainText: asPlainText)
+            }
             return true
 
         default:

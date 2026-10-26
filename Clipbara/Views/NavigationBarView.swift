@@ -303,6 +303,8 @@ struct NavigationBarView: View {
                 Button("Clear Type Filter") {
                     appState.searchState.selectedContentTypes = []
                     appState.searchState.selectedIndex = nil
+                    appState.searchState.selectedIndices = []
+                    appState.searchState.selectionAnchor = nil
                 }
             }
         }
@@ -318,6 +320,8 @@ struct NavigationBarView: View {
                 Button {
                     appState.searchState.dateFilter = filter
                     appState.searchState.selectedIndex = nil
+                    appState.searchState.selectedIndices = []
+                    appState.searchState.selectionAnchor = nil
                 } label: {
                     HStack {
                         Text(filter.displayName)

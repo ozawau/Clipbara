@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct ClipboardCardView: View {
     let item: ClipboardItem
@@ -10,7 +11,8 @@ struct ClipboardCardView: View {
     var pinboards: [Pinboard] = []
     var enableDrag: Bool = true
     var showsManagementMenu: Bool = true
-    let onSelect: (ClipboardItem) -> Void
+    /// Called with the current ⌘/⇧ modifiers so the grid can multi-select without pasting.
+    let onSelect: (ClipboardItem, NSEvent.ModifierFlags) -> Void
     let onPaste: (ClipboardItem) -> Void
     var onDelete: (() -> Void)? = nil
     var onRemoveFromPinboard: (() -> Void)? = nil
@@ -176,8 +178,12 @@ struct ClipboardCardView: View {
     }
 
     private func handleTap() {
-        onSelect(item)
-        onPaste(item)
+        let mods = NSEvent.modifierFlags.intersection([.command, .shift])
+        onSelect(item, mods)
+        // ⌘/⇧ clicks only change selection; Enter pastes the set.
+        if mods.isEmpty {
+            onPaste(item)
+        }
     }
 
     // MARK: - Header View
