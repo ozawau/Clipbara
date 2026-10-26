@@ -34,7 +34,6 @@ struct AboutTab: View {
             Button("Check for Updates...") {
                 updaterViewModel.checkForUpdates()
             }
-            .disabled(!updaterViewModel.canCheckForUpdates)
             #endif
 
             Spacer()
