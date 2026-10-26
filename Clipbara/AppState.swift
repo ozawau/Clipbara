@@ -77,7 +77,7 @@ final class AppState {
         Entitlements.shared.start()
         #endif
         panelController.onPanelWillHide = { [weak self] in
-            self?.searchState.reset()
+            self?.searchState.clearSession()
             self?.previewItem = nil
             ReviewPrompter.panelWillHide { [weak self] in
                 self?.panelController.isVisible ?? false
@@ -98,7 +98,7 @@ final class AppState {
         #if APPSTORE
         // Without an active trial or unlock, offer it instead of the history.
         // Clipboard capture keeps running, so nothing is lost in the meantime.
-        if !panelController.isVisible, !Entitlements.shared.checkHistoryAccess() {
+        if !panelController.isPresented, !Entitlements.shared.checkHistoryAccess() {
             PaywallWindowController.shared.show()
             return
         }
@@ -144,24 +144,44 @@ final class AppState {
         // Picking a clip replaces the item the queue lined up, and the next
         // ⌘V would then drop the wrong one from the queue. End it instead.
         clipQueue.stop()
+        let plain = asPlainText ?? PasteService.resolvePlainText()
+        bumpClipToFront(item)
         clipboardMonitor.skipNextChange()
-        pasteService.paste(item: item, asPlainText: asPlainText)
+        pasteService.paste(item: item, asPlainText: plain)
+        // Sync changeCount after the write so a mid-write poll cannot capture
+        // stripped plain text as a new history card.
+        clipboardMonitor.acknowledgeCurrentChange()
         // ⌘V has to reach the app behind the panel, so send it once the
         // panel is off screen and no longer the key window. Without
         // Accessibility + Settings > Paste into Active App, this only copies.
         if DirectPaste.isReady {
             let target = panelController.pasteTargetApp
+            let restoreAfterPlain = plain && PasteService.supportsPlainText(item)
             hidePanel(then: {
                 Task { @MainActor in
                     // Let focus leave the panel and settle on the previous app
                     // before synthesizing ⌘V (especially after ⇧Return).
                     try? await Task.sleep(for: .milliseconds(60))
                     _ = DirectPaste.sendPasteShortcut(to: target)
+                    // One-shot plain paste: put the original clip back so the
+                    // card and clipboard keep their formatting for next time.
+                    if restoreAfterPlain {
+                        try? await Task.sleep(for: .milliseconds(400))
+                        self.clipboardMonitor.skipNextChange()
+                        self.pasteService.write(item: item, asPlainText: false)
+                        self.clipboardMonitor.acknowledgeCurrentChange()
+                    }
                 }
             })
         } else {
             hidePanel()
         }
+    }
+
+    /// History is sorted by `copiedAt` newest-first; reusing a clip moves it to the front.
+    func bumpClipToFront(_ item: ClipboardItem) {
+        item.copiedAt = Date()
+        try? modelContainer?.mainContext.save()
     }
 
     // MARK: - Deleting with undo (#45)
@@ -241,7 +261,7 @@ final class AppState {
         panelToast = nil
         toastTask?.cancel()
         draggedClipboardItemID = nil
-        searchState.reset()
+        searchState.clearSession()
         selectedTab = .history
         panelController.hidePanel(then: completion)
     }
@@ -252,7 +272,7 @@ final class AppState {
             self?.openSettingsAction?()
             SettingsWindowFront.bring()
         }
-        if panelController.isVisible {
+        if panelController.isPresented {
             hidePanel(then: open)
         } else {
             open()
@@ -285,7 +305,7 @@ final class AppState {
         }
         KeyboardShortcuts.onKeyDown(for: .clearHistory) { [weak self] in
             Task { @MainActor in
-                guard self?.panelController.isVisible == true else { return }
+                guard self?.panelController.isPresented == true else { return }
                 self?.clearHistoryRequested = true
             }
         }

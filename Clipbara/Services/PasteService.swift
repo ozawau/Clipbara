@@ -8,10 +8,10 @@ struct PasteService {
     /// Backing key for the "Always Paste as Plain Text" setting (Settings > General).
     nonisolated static let alwaysPlainTextDefaultsKey = "alwaysPastePlainText"
 
-    /// Whether stripping formatting is meaningful for this item (RTF/HTML only).
+    /// Whether a plain-text paste is meaningful (RTF/HTML strip formatting; URLs drop the scheme).
     static func supportsPlainText(_ item: ClipboardItem) -> Bool {
         switch item.contentType {
-        case .richText, .html:
+        case .richText, .html, .url:
             return !(item.textContent?.isEmpty ?? true)
         default:
             return false
@@ -107,7 +107,8 @@ struct PasteService {
 
         if asPlainText, Self.supportsPlainText(item) {
             guard let string = item.textContent else { return [] }
-            return [(.string, text(string))]
+            let plain = item.contentType == .url ? Self.plainHostText(from: string) : string
+            return [(.string, text(plain))]
         }
 
         switch item.contentType {
@@ -161,11 +162,52 @@ struct PasteService {
         }
     }
 
+    /// Stripped text only, tagged so clipboard histories skip this write.
+    /// The original clip in SwiftData is never modified.
     func pastePlainText(item: ClipboardItem) {
         guard let text = item.textContent else { return }
+        // Links: string only (no URL type) and without http(s):// so apps don't re-linkify.
+        let plain = item.contentType == .url ? Self.plainHostText(from: text) : text
+        let pbItem = NSPasteboardItem()
+        pbItem.setString(plain, forType: .string)
+        for type in ClipQueuePasteboard.markerTypes {
+            pbItem.setData(Data(), forType: type)
+        }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        pasteboard.writeObjects([pbItem])
+    }
+
+    /// `https://github.com/` → `github.com`, `http://10.36.65.0:20060` → `10.36.65.0:20060`.
+    static func plainHostText(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed), let host = url.host, !host.isEmpty,
+           let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+            var result = host
+            if let port = url.port {
+                result += ":\(port)"
+            }
+            let path = url.path
+            if !path.isEmpty, path != "/" {
+                result += path
+            }
+            if let query = url.query, !query.isEmpty {
+                result += "?\(query)"
+            }
+            if let fragment = url.fragment, !fragment.isEmpty {
+                result += "#\(fragment)"
+            }
+            return result
+        }
+
+        var fallback = trimmed
+        if let range = fallback.range(of: #"^https?://"#, options: [.regularExpression, .caseInsensitive]) {
+            fallback.removeSubrange(range)
+        }
+        while fallback.hasSuffix("/") {
+            fallback.removeLast()
+        }
+        return fallback
     }
 
     /// 오래된 임시 파일 정리 (1시간 이상)

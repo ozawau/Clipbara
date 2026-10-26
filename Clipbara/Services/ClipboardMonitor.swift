@@ -179,6 +179,14 @@ final class ClipboardMonitor {
         shouldSkipNextChange = true
     }
 
+    /// Call after Clipbara itself writes the pasteboard so a poll between
+    /// `clearContents` and `setString` cannot record the write as a new clip
+    /// (that used to turn a ⇧Return plain-text paste into a lookalike card).
+    func acknowledgeCurrentChange() {
+        lastChangeCount = NSPasteboard.general.changeCount
+        shouldSkipNextChange = false
+    }
+
     func loadExcludedApps() {
         guard let modelContext else { return }
         let descriptor = FetchDescriptor<ExcludedApp>()

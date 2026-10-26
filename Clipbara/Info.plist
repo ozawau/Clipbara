@@ -40,7 +40,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>SUEnableAutomaticChecks</key>
-	<true/>
+	<false/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/mobrava/Clipbara/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>

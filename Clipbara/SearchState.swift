@@ -59,10 +59,16 @@ final class SearchState {
     }
 
     func reset() {
-        searchText = ""
-        debouncedSearchText = ""
+        clearSession()
         selectedContentTypes = []
         dateFilter = .all
+    }
+
+    /// Clears search and selection when the panel closes, but keeps Type/Date filters
+    /// so the next open still shows the same filtered set.
+    func clearSession() {
+        searchText = ""
+        debouncedSearchText = ""
         selectedIndex = nil
         debounceTask?.cancel()
     }
