@@ -31,6 +31,9 @@ final class PanelController {
     private var keyMonitor: Any?
     private var flagsMonitor: Any?
     private var tabHintTask: Task<Void, Never>?
+    /// Cancels a stale hide-animation completion if a newer hide started, or
+    /// forces `finish` if AppKit never calls the animation completion.
+    private var hideGeneration = 0
     /// Where the pointer was when the keyboard last took over: the panel
     /// opening, a tab switch, an arrow key. A card under a pointer that
     /// hasn't moved since is not what the user is pointing at; it just
@@ -38,6 +41,11 @@ final class PanelController {
     private var keyboardAnchor: NSPoint?
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
+
+    /// Whether the panel window is actually on screen. Prefer this over
+    /// `isVisible` when deciding to open/close: the flag can stay true if a
+    /// hide animation's completion never runs, which traps ⌘⇧V on hide forever.
+    var isPresented: Bool { panel?.isVisible == true }
 
     /// Settings > Appearance > Animate Panel. Missing means on.
     nonisolated static let animatesPanelDefaultsKey = "animatePanel"
@@ -76,9 +84,14 @@ final class PanelController {
     }
 
     func toggle(modelContainer: ModelContainer, appState: AppState) {
-        if isVisible {
+        // Trust the window, not the flag — a stale `isVisible == true` with an
+        // ordered-out panel made every hotkey press call hide (a no-op).
+        if isPresented {
             hidePanel()
         } else {
+            if isVisible {
+                resetHiddenState()
+            }
             showPanel(modelContainer: modelContainer, appState: appState)
         }
     }
@@ -111,7 +124,9 @@ final class PanelController {
         ClipSync.shared.syncOnOpen()
         ClipSync.shared.startLivePolling()
         #endif
-        guard !isVisible else { return }
+        // Recover from a stale flag so a stuck hide cannot block opening.
+        if isPresented { return }
+        if isVisible { resetHiddenState() }
         anchorKeyboard()
         self.appState = appState
 
@@ -260,7 +275,15 @@ final class PanelController {
 
     /// - Parameter completion: Runs after the panel has left the screen.
     func hidePanel(then completion: (@MainActor @Sendable () -> Void)? = nil) {
-        guard isVisible, let panel else { return }
+        guard let panel else {
+            resetHiddenState()
+            completion?()
+            return
+        }
+        guard isVisible || panel.isVisible else {
+            completion?()
+            return
+        }
         #if APPSTORE
         ClipSync.shared.stopLivePolling()
         #endif
@@ -275,13 +298,23 @@ final class PanelController {
         removeScrollMonitor()
         removeKeyMonitor()
 
+        // Drop the flag immediately so ⌘⇧V can open again even if the
+        // slide-out completion never fires (AppKit occasionally skips it).
+        isVisible = false
+        hideGeneration += 1
+        let generation = hideGeneration
+
         let finish: @MainActor () -> Void = { [weak self] in
+            guard let self, self.hideGeneration == generation else { return }
+            // Claim this hide so the safety timeout cannot run completion twice
+            // (which would re-fire paste-after-hide).
+            self.hideGeneration += 1
             panel.orderOut(nil)
             panel.hasShadow = true
-            self?.contentHost?.frame.origin.y = 0
-            self?.presentedScreen = nil
-            self?.pasteTargetApp = nil
-            self?.isVisible = false
+            self.contentHost?.frame.origin.y = 0
+            self.presentedScreen = nil
+            self.pasteTargetApp = nil
+            self.isVisible = false
             completion?()
         }
 
@@ -301,6 +334,29 @@ final class PanelController {
                 finish()
             }
         })
+
+        // Safety net: if the animation completion is dropped, still order out.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let self, self.hideGeneration == generation else { return }
+            finish()
+        }
+    }
+
+    /// Clears logical "open" state without relying on an animation completion.
+    private func resetHiddenState() {
+        hideGeneration += 1
+        removeClickMonitor()
+        removeMouseMonitor()
+        removeScrollMonitor()
+        removeKeyMonitor()
+        hideQuickLook()
+        panel?.orderOut(nil)
+        panel?.hasShadow = true
+        contentHost?.frame.origin.y = 0
+        presentedScreen = nil
+        pasteTargetApp = nil
+        isVisible = false
     }
 
     // MARK: - Click Monitor (dismiss on outside click)

@@ -114,7 +114,6 @@ struct MenuBarContentView: View {
             Button("Check for Updates...") {
                 updaterViewModel.checkForUpdates()
             }
-            .disabled(!updaterViewModel.canCheckForUpdates)
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             #endif
@@ -191,6 +190,7 @@ struct MenuBarItemRow: View {
             }
             #endif
             appState.clipQueue.stop()
+            appState.bumpClipToFront(item)
             appState.clipboardMonitor.skipNextChange()
             appState.pasteService.paste(item: item)
         } label: {
