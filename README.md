@@ -82,11 +82,12 @@ Inside the panel:
 - <kbd>Space</kbd> opens and closes Quick Look for the clip under the pointer, or the selected one
 - <kbd>⌘</kbd> <kbd>E</kbd> edits the text of a text clip
 - <kbd>Delete</kbd> removes the selected clip (on a Pinboard tab, from that Pinboard only), and <kbd>⌘</kbd> <kbd>Z</kbd> brings it back
+- <kbd>⌘</kbd>-click or <kbd>⇧</kbd>-click multi-selects clips; <kbd>Return</kbd> or <kbd>⇧</kbd> <kbd>Return</kbd> pastes them joined with newlines; <kbd>Delete</kbd> removes them all
 - <kbd>⌘</kbd> <kbd>1</kbd> to <kbd>⌘</kbd> <kbd>9</kbd> switch between History and Pinboards. Hold <kbd>⌘</kbd> to see the numbers
 - <kbd>⌘</kbd> <kbd>,</kbd> opens Settings
-- <kbd>Esc</kbd> clears the search, steps back, or closes the panel
+- <kbd>Esc</kbd> clears multi-select, the search, steps back, or closes the panel
 - <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>⌫</kbd> clears unpinned history
-- Holding <kbd>⇧</kbd> while pasting flips plain-text pasting for that one paste
+- Holding <kbd>⇧</kbd> while pasting a single clip flips plain-text pasting for that one paste
 - Right-clicking a clip lets you rename it, edit its text, add it to or move it between Pinboards, or delete it
 - Dragging a Pinboard tab reorders it
 

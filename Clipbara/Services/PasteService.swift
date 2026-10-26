@@ -32,6 +32,27 @@ struct PasteService {
         write(item: item, asPlainText: asPlainText ?? Self.resolvePlainText())
     }
 
+    /// Writes a joined plain-text string (multi-select paste) and counts it as a paste.
+    func paste(text: String) {
+        ReviewPrompter.recordPaste()
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+    }
+
+    /// Plain-text representation used when joining multiple cards with newlines.
+    static func joinableText(for item: ClipboardItem) -> String {
+        if let text = item.textContent, !text.isEmpty {
+            return text
+        }
+        switch item.contentType {
+        case .plainText, .url, .color, .fileURL, .richText, .html:
+            return String(data: item.rawData, encoding: .utf8) ?? ""
+        default:
+            return ""
+        }
+    }
+
     /// Puts the item on the clipboard without counting it as a paste. The
     /// Clip Queue uses this to line up the next item before ⌘V is pressed.
     func write(item: ClipboardItem, asPlainText: Bool) {

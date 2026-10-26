@@ -151,12 +151,32 @@ final class AppState {
         // Sync changeCount after the write so a mid-write poll cannot capture
         // stripped plain text as a new history card.
         clipboardMonitor.acknowledgeCurrentChange()
-        // ⌘V has to reach the app behind the panel, so send it once the
-        // panel is off screen and no longer the key window. Without
-        // Accessibility + Settings > Paste into Active App, this only copies.
+        finishPaste(
+            restoreAfterPlain: plain && PasteService.supportsPlainText(item)
+                ? { self.pasteService.write(item: item, asPlainText: false) }
+                : nil
+        )
+    }
+
+    /// Pastes several cards as one plain-text block, joined with newlines (multi-select).
+    func pasteJoined(_ items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        if items.count == 1 {
+            paste(items[0])
+            return
+        }
+        clipQueue.stop()
+        let text = items.map(PasteService.joinableText(for:)).joined(separator: "\n")
+        clipboardMonitor.skipNextChange()
+        pasteService.paste(text: text)
+        clipboardMonitor.acknowledgeCurrentChange()
+        finishPaste(restoreAfterPlain: nil)
+    }
+
+    /// Hides the panel and, when Direct Paste is on, sends ⌘V to the previous app.
+    private func finishPaste(restoreAfterPlain: (() -> Void)?) {
         if DirectPaste.isReady {
             let target = panelController.pasteTargetApp
-            let restoreAfterPlain = plain && PasteService.supportsPlainText(item)
             hidePanel(then: {
                 Task { @MainActor in
                     // Let focus leave the panel and settle on the previous app
@@ -165,10 +185,10 @@ final class AppState {
                     _ = DirectPaste.sendPasteShortcut(to: target)
                     // One-shot plain paste: put the original clip back so the
                     // card and clipboard keep their formatting for next time.
-                    if restoreAfterPlain {
+                    if let restoreAfterPlain {
                         try? await Task.sleep(for: .milliseconds(400))
                         self.clipboardMonitor.skipNextChange()
-                        self.pasteService.write(item: item, asPlainText: false)
+                        restoreAfterPlain()
                         self.clipboardMonitor.acknowledgeCurrentChange()
                     }
                 }
@@ -186,17 +206,53 @@ final class AppState {
 
     // MARK: - Deleting with undo (#45)
 
-    func deleteClip(_ item: ClipboardItem) {
+    func deleteClip(_ item: ClipboardItem, announce: Bool = true) {
         guard let context = modelContainer?.mainContext else { return }
         if hoveredClipID == item.id { hoveredClipID = nil }
         clipUndo.deleteClip(item, in: context)
-        showToast(String(localized: "Deleted. Press \u{2318}Z to undo."), systemImage: "trash")
+        if announce {
+            showToast(String(localized: "Deleted. Press \u{2318}Z to undo."), systemImage: "trash")
+        }
     }
 
-    func removeFromPinboard(_ entry: PinboardEntry) {
+    /// Deletes several history clips; each deletion is its own undo step.
+    func deleteClips(_ items: [ClipboardItem]) {
+        guard !items.isEmpty else { return }
+        if items.count == 1 {
+            deleteClip(items[0])
+            return
+        }
+        for item in items {
+            deleteClip(item, announce: false)
+        }
+        showToast(
+            String(localized: "Deleted \(items.count) clips. Press \u{2318}Z to undo."),
+            systemImage: "trash"
+        )
+    }
+
+    func removeFromPinboard(_ entry: PinboardEntry, announce: Bool = true) {
         guard let context = modelContainer?.mainContext else { return }
         clipUndo.removeEntry(entry, in: context)
-        showToast(String(localized: "Removed from pinboard. Press \u{2318}Z to undo."), systemImage: "pin.slash")
+        if announce {
+            showToast(String(localized: "Removed from pinboard. Press \u{2318}Z to undo."), systemImage: "pin.slash")
+        }
+    }
+
+    /// Removes several entries from a pinboard; each removal is its own undo step.
+    func removeFromPinboard(_ entries: [PinboardEntry]) {
+        guard !entries.isEmpty else { return }
+        if entries.count == 1 {
+            removeFromPinboard(entries[0])
+            return
+        }
+        for entry in entries {
+            removeFromPinboard(entry, announce: false)
+        }
+        showToast(
+            String(localized: "Removed \(entries.count) from pinboard. Press \u{2318}Z to undo."),
+            systemImage: "pin.slash"
+        )
     }
 
     // MARK: - Editing (#54)

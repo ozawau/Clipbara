@@ -38,6 +38,8 @@ struct HistoryPanelView: View {
                             onClose: {
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     appState.searchState.selectedIndex = nil
+                                    appState.searchState.selectedIndices = []
+                                    appState.searchState.selectionAnchor = nil
                                     appState.selectForPreview(nil)
                                 }
                             },
