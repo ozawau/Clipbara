@@ -87,6 +87,13 @@ final class PanelController {
         // Trust the window, not the flag — a stale `isVisible == true` with an
         // ordered-out panel made every hotkey press call hide (a no-op).
         if isPresented {
+            // During slide-out `isVisible` is cleared before `orderOut`, so a
+            // second hotkey must reopen instead of calling hide again (a no-op).
+            if !isVisible {
+                resetHiddenState()
+                showPanel(modelContainer: modelContainer, appState: appState)
+                return
+            }
             hidePanel()
         } else {
             if isVisible {
@@ -125,8 +132,15 @@ final class PanelController {
         ClipSync.shared.startLivePolling()
         #endif
         // Recover from a stale flag so a stuck hide cannot block opening.
-        if isPresented { return }
-        if isVisible { resetHiddenState() }
+        if isPresented {
+            if isVisible {
+                restoreKeyboardNavigationFocus(activateApp: true)
+                return
+            }
+            resetHiddenState()
+        } else if isVisible {
+            resetHiddenState()
+        }
         anchorKeyboard()
         self.appState = appState
 
