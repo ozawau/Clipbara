@@ -47,6 +47,13 @@ targets:
       - package: KeyboardShortcuts
       - package: Sparkle
         product: Sparkle
+    scheme:
+      build:
+        postActions:
+          - name: Unregister Debug from Launch Services
+            script: |
+              bash "${SRCROOT}/scripts/unregister-debug-launch-services.sh"
+            settingsTarget: Clipbara
     entitlements:
       path: Clipbara/Clipbara.entitlements
       properties:

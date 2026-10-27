@@ -11,7 +11,11 @@ enum AppInstallLocation {
 
     /// The shipped copy users install under /Applications.
     nonisolated static var isApplicationsCopy: Bool {
-        bundlePath == applicationsBundlePath || bundlePath.hasPrefix(applicationsBundlePath + "/")
+        isApplicationsPath(bundlePath)
+    }
+
+    nonisolated static func isApplicationsPath(_ path: String) -> Bool {
+        path == applicationsBundlePath || path.hasPrefix(applicationsBundlePath + "/")
     }
 
     /// Xcode Debug, release staging (`build/dmg`), Downloads drops, or a mounted DMG.

@@ -40,8 +40,12 @@ xcodebuild \
   -derivedDataPath "$OUTPUT/DerivedData" \
   build
 
-echo "==> Quitting the running app and launching the new build..."
 APP="$OUTPUT/DerivedData/Build/Products/Debug/Clipbara.app"
+echo "==> Unregistering Debug build from Launch Services (keeps it out of system app lists)..."
+CONFIGURATION=Debug TARGET_BUILD_DIR="$(dirname "$APP")" FULL_PRODUCT_NAME="$(basename "$APP")" \
+  bash "$ROOT/scripts/unregister-debug-launch-services.sh"
+
+echo "==> Quitting the running app and launching the new build..."
 test -d "$APP"
 pkill -f 'Clipbara.app/Contents/MacOS/Clipbara' || true
 sleep 2

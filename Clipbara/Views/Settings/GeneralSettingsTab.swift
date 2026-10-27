@@ -61,7 +61,10 @@ struct GeneralSettingsTab: View {
                             Text("System Settings can still show Clipbara as on after an update, while this running build is not trusted. Do all of the following:")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
-                            Text("1. Open Accessibility settings and remove every Clipbara entry.\n2. Click +, select this exact app, and turn the switch on:\n3. Quit Clipbara completely, then open it again.")
+                            Text("If you still see a Debug or Downloads Clipbara in the list, reset and keep only the Applications copy.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                            Text("1. Click Reset Accessibility Entries.\n2. Open Accessibility settings, click +, and choose this app:\n3. Turn the switch on, then quit and reopen Clipbara.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                             Text(DirectPaste.runningAppPath)
@@ -69,13 +72,16 @@ struct GeneralSettingsTab: View {
                                 .textSelection(.enabled)
                                 .foregroundStyle(.secondary)
                             HStack(spacing: 8) {
+                                Button("Reset Accessibility Entries") {
+                                    DirectPaste.resetAccessibilityEntries()
+                                    hasPastePermission = false
+                                }
                                 Button("Open Accessibility Settings\u{2026}") {
-                                    DirectPaste.requestPermission()
                                     DirectPaste.openAccessibilitySettings()
                                 }
                                 Button("Recheck") {
                                     hasPastePermission = DirectPaste.hasPermission
-                                    if !hasPastePermission {
+                                    if !hasPastePermission, AppInstallLocation.supportsSystemIntegration {
                                         DirectPaste.requestPermission()
                                     }
                                 }

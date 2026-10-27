@@ -69,6 +69,18 @@ enum DirectPaste {
         NSWorkspace.shared.open(url)
     }
 
+    /// Clears every Clipbara row in Accessibility (Debug, Downloads, etc.). Re-add
+    /// only `/Applications/Clipbara.app` afterward.
+    static func resetAccessibilityEntries() {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        process.arguments = ["reset", "Accessibility", "com.minsang.PasteClip"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
+
     /// Sends ⌘V after optionally handing focus back to `targetApp`.
     ///
     /// Call only after the panel is off screen. Releases any still-held
