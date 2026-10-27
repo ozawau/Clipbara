@@ -264,6 +264,11 @@ else
     echo "==> Sparkle sign_update not found. Build the project first to download Sparkle."
 fi
 
+# Drop staging copies so Spotlight and system app lists don't pick up a second
+# Clipbara beside /Applications/Clipbara.app.
+echo "==> Removing DMG staging folder..."
+rm -rf "${DMG_DIR}"
+
 echo ""
 echo "==> To create a GitHub release:"
 echo "    git tag v${VERSION}"

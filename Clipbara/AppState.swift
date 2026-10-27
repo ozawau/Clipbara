@@ -65,6 +65,7 @@ final class AppState {
         // App.init may run more than once; start the monitor and hotkeys only once.
         guard !hasStarted else { return }
         hasStarted = true
+        RunningAppPolicy.applyOnLaunch()
         self.modelContainer = modelContainer
         clipQueue.attach(to: self)
         URLCommandHandler.shared.install(appState: self)
@@ -152,7 +153,7 @@ final class AppState {
         // stripped plain text as a new history card.
         clipboardMonitor.acknowledgeCurrentChange()
         finishPaste(
-            restoreAfterPlain: plain && PasteService.supportsPlainText(item)
+            restoreAfterPlain: plain && PasteService.shouldRestoreClipboardAfterPlainPaste(item)
                 ? { self.pasteService.write(item: item, asPlainText: false) }
                 : nil
         )

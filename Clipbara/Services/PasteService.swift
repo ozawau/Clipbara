@@ -18,6 +18,25 @@ struct PasteService {
         }
     }
 
+    /// Leading/trailing whitespace only (newlines, spaces, tabs). Inner content is unchanged.
+    static func trimPlainTextEdges(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// String written for a one-shot plain-text paste; does not modify the stored clip.
+    static func plainTextForPaste(from item: ClipboardItem) -> String? {
+        guard let text = item.textContent else { return nil }
+        let plain = item.contentType == .url ? plainHostText(from: text) : text
+        return trimPlainTextEdges(plain)
+    }
+
+    /// After a plain-text paste, put formatting (or untrimmed text) back on the clipboard.
+    static func shouldRestoreClipboardAfterPlainPaste(_ item: ClipboardItem) -> Bool {
+        if supportsPlainText(item) { return true }
+        guard item.contentType == .plainText, let text = item.textContent else { return false }
+        return trimPlainTextEdges(text) != text
+    }
+
     /// Combines the setting with the Shift modifier using XOR.
     /// Setting off: Shift strips formatting. Setting on: Shift keeps formatting.
     static func resolvePlainText() -> Bool {
@@ -56,7 +75,7 @@ struct PasteService {
     /// Puts the item on the clipboard without counting it as a paste. The
     /// Clip Queue uses this to line up the next item before ⌘V is pressed.
     func write(item: ClipboardItem, asPlainText: Bool) {
-        if asPlainText, Self.supportsPlainText(item) {
+        if asPlainText, Self.plainTextForPaste(from: item) != nil {
             pastePlainText(item: item)
             return
         }
@@ -126,9 +145,7 @@ struct PasteService {
     func contents(for item: ClipboardItem, asPlainText: Bool) -> [(NSPasteboard.PasteboardType, Data)] {
         func text(_ string: String) -> Data { Data(string.utf8) }
 
-        if asPlainText, Self.supportsPlainText(item) {
-            guard let string = item.textContent else { return [] }
-            let plain = item.contentType == .url ? Self.plainHostText(from: string) : string
+        if asPlainText, let plain = Self.plainTextForPaste(from: item) {
             return [(.string, text(plain))]
         }
 
@@ -186,9 +203,11 @@ struct PasteService {
     /// Stripped text only, tagged so clipboard histories skip this write.
     /// The original clip in SwiftData is never modified.
     func pastePlainText(item: ClipboardItem) {
-        guard let text = item.textContent else { return }
-        // Links: string only (no URL type) and without http(s):// so apps don't re-linkify.
-        let plain = item.contentType == .url ? Self.plainHostText(from: text) : text
+        guard let plain = Self.plainTextForPaste(from: item) else { return }
+        writeTransientPlainString(plain)
+    }
+
+    private func writeTransientPlainString(_ plain: String) {
         let pbItem = NSPasteboardItem()
         pbItem.setString(plain, forType: .string)
         for type in ClipQueuePasteboard.markerTypes {

@@ -15,7 +15,8 @@ struct GeneralSettingsTab: View {
     @State private var hasPastePermission = DirectPaste.hasPermission
     /// Permission is granted in System Settings, outside the app, so poll while visible.
     private let permissionTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-    @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
+    @State private var launchAtLogin: Bool = AppInstallLocation.supportsSystemIntegration
+        && SMAppService.mainApp.status == .enabled
     @AppStorage(AppState.showsMenuBarIconDefaultsKey) private var showsMenuBarIcon = true
     @State private var showHiddenIconNotice = false
     @State private var transferMessage: String?
@@ -47,7 +48,8 @@ struct GeneralSettingsTab: View {
                     }
                     .onAppear {
                         hasPastePermission = DirectPaste.hasPermission
-                        if pasteIntoActiveApp, !hasPastePermission {
+                        if AppInstallLocation.supportsSystemIntegration,
+                           pasteIntoActiveApp, !hasPastePermission {
                             DirectPaste.requestPermission()
                         }
                     }
@@ -111,18 +113,27 @@ struct GeneralSettingsTab: View {
             }
             .pickerStyle(.menu)
 
-            Toggle("Launch at Login", isOn: $launchAtLogin)
-                .onChange(of: launchAtLogin) { _, newValue in
-                    do {
-                        if newValue {
-                            try SMAppService.mainApp.register()
-                        } else {
-                            try SMAppService.mainApp.unregister()
+            if AppInstallLocation.supportsSystemIntegration {
+                Toggle("Launch at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            launchAtLogin = !newValue
                         }
-                    } catch {
-                        launchAtLogin = !newValue
                     }
+            } else {
+                LabeledContent("Launch at Login") {
+                    Text("Install Clipbara in Applications to enable.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
                 }
+            }
 
             // #25. Opening the app again (AppDelegate) and ⌘, or the … menu
             // in the panel lead back here while the icon is hidden.
