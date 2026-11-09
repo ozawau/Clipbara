@@ -9,8 +9,13 @@ enum RunningAppPolicy {
     /// builds exit when that copy is already running.
     static func applyOnLaunch() {
         reconcileLoginItemRegistration()
-        LaunchServicesRegistry.unregisterEphemeralCopies()
-        LaunchServicesRegistry.unregisterCurrentBundleIfEphemeral()
+
+        // Launch Services cleanup talks to Spotlight / lsregister — never block
+        // App.init on it or the menu bar and hotkeys stay dead until it finishes.
+        Task.detached(priority: .utility) {
+            LaunchServicesRegistry.unregisterEphemeralCopies()
+            LaunchServicesRegistry.unregisterCurrentBundleIfEphemeral()
+        }
 
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleId)
             .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }

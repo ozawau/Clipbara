@@ -27,46 +27,10 @@ enum LaunchServicesRegistry {
     }
 
     private static func discoverRegisteredPaths() -> [String] {
-        var paths: [String] = []
-
+        // Spotlight only — `lsregister -dump` can take tens of seconds and used
+        // to block App.init on the main thread so the menu bar never appeared.
         let query = "kMDItemCFBundleIdentifier == '\(bundleId)'" as CFString
-        if let found = MDQueryBridge.paths(matching: query) {
-            paths.append(contentsOf: found)
-        }
-
-        if let dump = dumpRegisteredPaths() {
-            paths.append(contentsOf: dump)
-        }
-
-        return paths
-    }
-
-    private static func dumpRegisteredPaths() -> [String]? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: lsregisterPath)
-        process.arguments = ["-dump"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-        } catch {
-            return nil
-        }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let text = String(data: data, encoding: .utf8) else { return nil }
-
-        return text.split(separator: "\n").compactMap { line in
-            let s = String(line).trimmingCharacters(in: .whitespaces)
-            guard s.hasPrefix("path:") else { return nil }
-            guard s.contains("Clipbara.app") else { return nil }
-            guard let range = s.range(of: "Clipbara.app") else { return nil }
-            let prefix = s[s.index(s.startIndex, offsetBy: 6)..<range.upperBound]
-            return String(prefix).trimmingCharacters(in: .whitespaces)
-        }
+        return MDQueryBridge.paths(matching: query) ?? []
     }
 
     private static func unregister(at appPath: String) {
@@ -89,7 +53,9 @@ private enum MDQueryBridge {
         guard let queryRef = MDQueryCreate(kCFAllocatorDefault, query, nil, nil) else {
             return nil
         }
-        MDQueryExecute(queryRef, CFOptionFlags(kMDQuerySynchronous.rawValue))
+        guard MDQueryExecute(queryRef, CFOptionFlags(kMDQuerySynchronous.rawValue)) else {
+            return nil
+        }
         let count = MDQueryGetResultCount(queryRef)
         guard count > 0 else { return [] }
 
@@ -97,7 +63,10 @@ private enum MDQueryBridge {
         paths.reserveCapacity(count)
         for index in 0..<count {
             guard let raw = MDQueryGetResultAtIndex(queryRef, index) else { continue }
-            let item = raw as! MDItem
+            // Results are MDItem refs, not toll-free bridged objects — `as! MDItem`
+            // traps (failed cast) and used to crash every /Applications launch.
+            let item = Unmanaged<MDItem>.fromOpaque(raw).takeUnretainedValue()
+            guard CFGetTypeID(item) == MDItemGetTypeID() else { continue }
             guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else { continue }
             paths.append(path)
         }
