@@ -4,12 +4,18 @@
 
 - xcodegen 사용: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodegen generate`
 - 빌드: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Clipbara.xcodeproj -scheme Clipbara -configuration Debug build`
-- **빌드 성공 후 항상 기존 앱 종료 → 재실행까지 자동으로 수행할 것:**
+- **기능 수정이 끝난 뒤 (디버그 검증 후) 항상 Release로 마감할 것:**
+  1. `~/Downloads`에 패키지가 없으면 `bash scripts/build-release.sh`로 Release 빌드
+  2. `build/Clipbara-{VERSION}.dmg`와 `.app`을 `~/Downloads/`로 복사
+  3. `/Applications/Clipbara.app`을 Downloads의 `.app`으로 교체 (`xattr -cr` 포함)
+  4. Debug 프로세스 종료 + DerivedData Debug 번들 Launch Services 등록 해제 (`lsregister -u`)
+  5. **오직** `/Applications/Clipbara.app`만 실행 — Debug 빌드를 남겨두지 말 것
   ```
   pkill -f Clipbara.app || true
   sleep 1
-  open ~/Library/Developer/Xcode/DerivedData/Clipbara-fkhylhcltueskmgbecvzvekxrevf/Build/Products/Debug/Clipbara.app
+  open /Applications/Clipbara.app
   ```
+- 중간 디버깅이 필요할 때만 Debug DerivedData 앱을 잠깐 쓰고, 작업 마감 시 위 Release 절차로 되돌릴 것.
 
 ## 릴리스 & 배포
 

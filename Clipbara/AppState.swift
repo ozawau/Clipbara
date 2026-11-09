@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import KeyboardShortcuts
+@preconcurrency import KeyboardShortcuts
 
 struct PanelToast: Identifiable, Equatable {
     let id = UUID()
@@ -366,5 +366,38 @@ final class AppState {
                 self?.clearHistoryRequested = true
             }
         }
+
+        // Carbon hotkeys can silently stop after sleep / some menu tracking.
+        // Bouncing `isEnabled` reinstalls the event handler and soft-registers again.
+        let refresh: (Notification) -> Void = { _ in
+            Task { @MainActor in
+                Self.refreshKeyboardShortcuts()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main,
+            using: refresh
+        )
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main,
+            using: refresh
+        )
+        // Screens waking (lid open, display reconnect) without a full system wake.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main,
+            using: refresh
+        )
+    }
+
+    /// Re-bind Carbon hotkeys without dropping our `onKeyDown` handlers.
+    private static func refreshKeyboardShortcuts() {
+        KeyboardShortcuts.isEnabled = false
+        KeyboardShortcuts.isEnabled = true
     }
 }

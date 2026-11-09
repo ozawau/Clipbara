@@ -42,10 +42,21 @@ final class PanelController {
     var onPanelWillHide: (() -> Void)?
     weak var appState: AppState?
 
-    /// Whether the panel window is actually on screen. Prefer this over
+    /// Whether the panel is actually shown to the user. Prefer this over
     /// `isVisible` when deciding to open/close: the flag can stay true if a
     /// hide animation's completion never runs, which traps ⌘⇧V on hide forever.
-    var isPresented: Bool { panel?.isVisible == true }
+    ///
+    /// Also rejects ordered-in-but-invisible states (other Space, occluded,
+    /// content still slid below the frame, alpha 0). Those used to make
+    /// `panel.isVisible == true` while CG reported the window off-screen, so
+    /// every hotkey called hide and `clipbara://open` no-op'd.
+    var isPresented: Bool {
+        guard let panel, panel.isVisible else { return false }
+        guard panel.alphaValue > 0.01 else { return false }
+        guard panel.occlusionState.contains(.visible) else { return false }
+        if let contentHost, contentHost.frame.origin.y < -1 { return false }
+        return true
+    }
 
     /// Settings > Appearance > Animate Panel. Missing means on.
     nonisolated static let animatesPanelDefaultsKey = "animatePanel"
@@ -87,6 +98,13 @@ final class PanelController {
         // Trust the window, not the flag — a stale `isVisible == true` with an
         // ordered-out panel made every hotkey press call hide (a no-op).
         if isPresented {
+            // During slide-out `isVisible` is cleared before `orderOut`, so a
+            // second hotkey must reopen instead of calling hide again (a no-op).
+            if !isVisible {
+                resetHiddenState()
+                showPanel(modelContainer: modelContainer, appState: appState)
+                return
+            }
             hidePanel()
         } else {
             if isVisible {
@@ -115,8 +133,14 @@ final class PanelController {
         warm.contentView?.layoutSubtreeIfNeeded()
         warm.displayIfNeeded()
         warm.orderOut(nil)
+        // orderOut can lag a turn on some systems; force a second pass so a
+        // warm panel cannot sit ordered-in and trap the first ⌘⇧V on hide.
+        if warm.isVisible {
+            warm.orderOut(nil)
+        }
         warm.alphaValue = 1
         panel = warm
+        isVisible = false
     }
 
     func showPanel(modelContainer: ModelContainer, appState: AppState) {
@@ -124,9 +148,18 @@ final class PanelController {
         ClipSync.shared.syncOnOpen()
         ClipSync.shared.startLivePolling()
         #endif
-        // Recover from a stale flag so a stuck hide cannot block opening.
-        if isPresented { return }
-        if isVisible { resetHiddenState() }
+        // Recover from a stale flag / ghost window so a stuck hide cannot
+        // block opening. `panel.isVisible` alone is not enough — an occluded
+        // or content-slid-out panel must be torn down and shown fresh.
+        if isPresented {
+            if isVisible {
+                restoreKeyboardNavigationFocus(activateApp: true)
+                return
+            }
+            resetHiddenState()
+        } else if isVisible || panel?.isVisible == true {
+            resetHiddenState()
+        }
         anchorKeyboard()
         self.appState = appState
 

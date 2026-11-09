@@ -115,13 +115,14 @@ final class URLCommandHandler: NSObject {
         guard let appState else { return }
         switch command {
         case .open:
-            if !appState.panelController.isPresented { appState.togglePanel() }
-        case .toggle:
-            if appState.panelController.isPresented {
-                appState.hidePanel()
-            } else {
-                appState.togglePanel()
+            // Already fully open — leave it. Mid-hide or stale flags go through
+            // togglePanel so its recovery path can reopen.
+            if appState.panelController.isPresented && appState.panelController.isVisible {
+                break
             }
+            appState.togglePanel()
+        case .toggle:
+            appState.togglePanel()
         case .queue:
             appState.toggleClipQueue()
         }
