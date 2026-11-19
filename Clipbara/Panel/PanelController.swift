@@ -47,15 +47,24 @@ final class PanelController {
     /// hide animation's completion never runs, which traps ⌘⇧V on hide forever.
     ///
     /// Also rejects ordered-in-but-invisible states (other Space, occluded,
-    /// content still slid below the frame, alpha 0). Those used to make
-    /// `panel.isVisible == true` while CG reported the window off-screen, so
-    /// every hotkey called hide and `clipbara://open` no-op'd.
+    /// content still slid below the frame, alpha 0, or stranded on a
+    /// disconnected display). Those used to make `panel.isVisible == true`
+    /// while CG reported the window off-screen, so every hotkey called hide
+    /// and `clipbara://open` no-op'd.
     var isPresented: Bool {
         guard let panel, panel.isVisible else { return false }
         guard panel.alphaValue > 0.01 else { return false }
         guard panel.occlusionState.contains(.visible) else { return false }
+        guard Self.frameIntersectsAnyScreen(panel.frame) else { return false }
         if let contentHost, contentHost.frame.origin.y < -1 { return false }
         return true
+    }
+
+    /// True when `frame` overlaps at least one attached display.
+    /// After unplugging a monitor the panel can keep its old origin (e.g. x=-1853)
+    /// and stay "visible" to AppKit while the user sees nothing.
+    static func frameIntersectsAnyScreen(_ frame: NSRect, screens: [NSScreen] = NSScreen.screens) -> Bool {
+        screens.contains { $0.frame.intersects(frame) }
     }
 
     /// Settings > Appearance > Animate Panel. Missing means on.
@@ -107,9 +116,24 @@ final class PanelController {
             }
             hidePanel()
         } else {
-            if isVisible {
+            // Off-screen ghosts (unplugged display) need a full rebuild;
+            // setFrame on a window stranded on a dead screen often never maps.
+            if let panel, !Self.frameIntersectsAnyScreen(panel.frame) {
+                discardPanel()
+            } else if isVisible || panel?.isVisible == true {
                 resetHiddenState()
             }
+            showPanel(modelContainer: modelContainer, appState: appState)
+        }
+    }
+
+    /// Display layout changed: destroy any existing panel (it may sit on a
+    /// dead display or the wrong width) and reopen if it was showing.
+    func handleScreensChanged(modelContainer: ModelContainer?, appState: AppState?) {
+        guard panel != nil else { return }
+        let wasOpen = isVisible
+        discardPanel()
+        if wasOpen, let modelContainer, let appState {
             showPanel(modelContainer: modelContainer, appState: appState)
         }
     }
@@ -157,6 +181,8 @@ final class PanelController {
                 return
             }
             resetHiddenState()
+        } else if let panel, !Self.frameIntersectsAnyScreen(panel.frame) {
+            discardPanel()
         } else if isVisible || panel?.isVisible == true {
             resetHiddenState()
         }
@@ -390,6 +416,18 @@ final class PanelController {
         presentedScreen = nil
         pasteTargetApp = nil
         isVisible = false
+    }
+
+    /// Destroys the NSPanel so the next show builds on the current display.
+    /// Needed after a monitor is unplugged: moving a stranded window with
+    /// `setFrame` often leaves it ordered-in but never composited on screen.
+    private func discardPanel() {
+        resetHiddenState()
+        panel?.contentView = nil
+        panel = nil
+        contentHost = nil
+        contentContainer = nil
+        resizeTargetFrame = nil
     }
 
     // MARK: - Click Monitor (dismiss on outside click)
