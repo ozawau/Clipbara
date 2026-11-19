@@ -387,12 +387,22 @@ final class AppState {
             using: refresh
         )
         // Screens waking (lid open, display reconnect) without a full system wake.
+        // Also drop a panel stranded on an unplugged display — setFrame alone
+        // will not bring it back, which made ⌘⇧V look dead after unplugging.
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
-            queue: .main,
-            using: refresh
-        )
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                Self.refreshKeyboardShortcuts()
+                guard let self else { return }
+                self.panelController.handleScreensChanged(
+                    modelContainer: self.modelContainer,
+                    appState: self
+                )
+            }
+        }
     }
 
     /// Re-bind Carbon hotkeys without dropping our `onKeyDown` handlers.
