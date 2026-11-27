@@ -13,8 +13,6 @@ final class KeyboardModel {
     var hasFullAccess = false
     var isFetching = false
     var hintDismissed = UserDefaults.standard.bool(forKey: "fullAccessHintDismissed")
-    /// Published by the app from the App Store trial state; re-read on every appearance.
-    var access: KeyboardAccess = .open
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
 
     /// Sync is on in the app but the keyboard cannot reach iCloud without Full Access.
@@ -36,7 +34,6 @@ final class KeyboardModel {
     }
 
     func reload() {
-        access = KeyboardAccess.read().current()
         snapshot = KeyboardSnapshot.load()
         if let selectedBoardID, !snapshot.boards.contains(where: { $0.id == selectedBoardID }) {
             self.selectedBoardID = nil
@@ -61,8 +58,6 @@ final class KeyboardModel {
     }
 
     func tap(_ clip: KeyboardSnapshot.Clip) {
-        access = access.current()
-        guard access.allowsInserting else { return }
         insert(clip.text)
         lastInsertedID = clip.id
     }
@@ -77,11 +72,7 @@ struct KeyboardRootView: View {
             if model.showsFullAccessHint {
                 fullAccessHint
             }
-            if model.access.allowsInserting {
-                cards
-            } else {
-                lockedNotice
-            }
+            cards
             keyRow
         }
         .padding(.top, 8)
@@ -199,24 +190,6 @@ struct KeyboardRootView: View {
             .frame(maxHeight: .infinity)
             .id(model.selectedBoardID)
         }
-    }
-
-    /// The trial has not started or has ended. The keys still work (Guideline 4.4.1).
-    private var lockedNotice: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "lock")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            Text(model.access == .trialNotStarted
-                 ? "Open Clipbara to start your free trial."
-                 : "Your free trial has ended. Open Clipbara to unlock your clips.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Keys
