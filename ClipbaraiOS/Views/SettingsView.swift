@@ -10,19 +10,12 @@ struct SettingsView: View {
 
     @State private var confirmClear = false
     @State private var showsSetupGuide = false
-    @State private var showsPaywall = false
-    @State private var restoreMessage: String?
-    @State private var isRestoring = false
 
     private let limits = [100, 250, 500, 1000, 0]
 
     var body: some View {
         NavigationStack {
             Form {
-                if !PaywallPresenter.shared.bypass {
-                    purchaseSection
-                }
-
                 Section {
                     Toggle("Save Clipboard When Opening", isOn: $autoSaveOnOpen)
                 } footer: {
@@ -84,9 +77,6 @@ struct SettingsView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showsPaywall) {
-                PaywallSheet()
-            }
             .fullScreenCover(isPresented: $showsSetupGuide) {
                 OnboardingView()
             }
@@ -96,70 +86,6 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("This removes every clip that is not on a pinboard.")
-            }
-        }
-    }
-
-    // MARK: - Trial and unlock
-
-    private var isUnlockedForGood: Bool {
-        switch Entitlements.shared.state {
-        case .unlocked(.lifetime), .unlocked(.grandfathered): true
-        default: false
-        }
-    }
-
-    private var accessStatus: String? {
-        switch Entitlements.shared.state {
-        case .unlocked(.lifetime), .unlocked(.grandfathered):
-            return String(localized: "Unlocked")
-        case .unlocked(.unverified):
-            return nil
-        case .trialActive(let daysLeft):
-            return String(localized: "Free trial, \(daysLeft) days left")
-        case .trialNotStarted:
-            return String(localized: "Free trial not started")
-        case .trialExpired:
-            return String(localized: "Free trial ended")
-        }
-    }
-
-    private var purchaseSection: some View {
-        Section {
-            if let accessStatus {
-                LabeledContent("Clipbara", value: accessStatus)
-            }
-            if !isUnlockedForGood {
-                Button("Unlock Clipbara…") { showsPaywall = true }
-            }
-            Button {
-                Task {
-                    isRestoring = true
-                    defer { isRestoring = false }
-                    switch await Entitlements.shared.restorePurchases() {
-                    case .restored:
-                        restoreMessage = String(localized: "Your purchases were restored.")
-                    case .nothingFound:
-                        restoreMessage = String(localized: "No unlock purchase was found for this Apple Account.")
-                    case .failed:
-                        restoreMessage = String(localized: "Couldn't restore purchases. Check your connection and try again.")
-                    case .cancelled:
-                        restoreMessage = nil
-                    }
-                }
-            } label: {
-                if isRestoring {
-                    ProgressView()
-                } else {
-                    Text("Restore Purchases")
-                }
-            }
-            .disabled(isRestoring)
-        } footer: {
-            if let restoreMessage {
-                Text(restoreMessage)
-            } else {
-                Text("One purchase unlocks Clipbara on your Mac and iPhone.")
             }
         }
     }

@@ -71,9 +71,6 @@ targets:
           - "Info.plist"
       - path: Shared
       - path: SyncKit
-      # Local StoreKit testing only. Listed so Xcode can open it; never bundled.
-      - path: StoreKit/Clipbara.storekit
-        buildPhase: none
     resources:
       - Clipbara/Resources
     settings:
@@ -108,14 +105,6 @@ targets:
           - $(CLIPBARA_CLOUDKIT_CONTAINER)
         com.apple.developer.icloud-services:
           - CloudKit
-    scheme:
-      # Run with the local StoreKit products (trial + lifetime) instead of the sandbox.
-      storeKitConfiguration: StoreKit/Clipbara.storekit
-      # Debug-only trial switches, off by default. Tick them in Edit Scheme > Run > Arguments.
-      commandLineArguments:
-        "-ClipbaraDebugOriginalAppVersion 1.4": false
-        "-ClipbaraDebugTrialShiftDays 8": false
-
   # iOS companion app (local-first, optional iCloud sync)
   ClipbaraiOS:
     type: application
@@ -131,7 +120,6 @@ targets:
         CLIPBARA_CLOUDKIT_CONTAINER: iCloud.com.minsang.Clipbara
         CLIPBARA_APS_ENVIRONMENT: development
         PRODUCT_NAME: Clipbara
-        # The iPhone app is App Store only: the trial and unlock (Shared/Store) apply.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "APPSTORE $(inherited)"
         INFOPLIST_FILE: ClipbaraiOS/Info.plist
         GENERATE_INFOPLIST_FILE: false
@@ -221,7 +209,6 @@ targets:
       - path: Clipbara/Utilities/PanelTabShortcut.swift
       - path: Clipbara/Utilities/WheelScrollTranslation.swift
       - path: Clipbara/Utilities/ReviewPromptPolicy.swift
-      - path: Shared/Store/AccessPolicy.swift
       - path: Clipbara/Panel/PanelContentContainer.swift
       - path: Clipbara/Utilities/PasteKeyCode.swift
       - path: Clipbara/Utilities/ClipQueueList.swift

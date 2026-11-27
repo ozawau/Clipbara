@@ -61,11 +61,5 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         // so the tour never nags on subsequent launches.
         UserDefaults.standard.set(true, forKey: Self.completedDefaultsKey)
         window = nil
-
-        #if APPSTORE
-        Task { @MainActor in
-            await PaywallWindowController.shared.showAfterOnboardingIfNeeded()
-        }
-        #endif
     }
 }

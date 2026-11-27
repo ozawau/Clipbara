@@ -23,7 +23,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mobrava/Clipbara?style=flat-square" alt="许可证"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square" alt="macOS 14+">
   <img src="https://img.shields.io/badge/iOS-26%2B-blue?style=flat-square" alt="iOS 26+">
-  <a href="https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&amp;ct=github_readme_zh&amp;mt=8"><img src="https://img.shields.io/badge/Mac%20App%20Store-7--day%20free%20trial-0D96F6?style=flat-square&logo=apple&logoColor=white" alt="Mac App Store 上的 Clipbara"></a>
+  <a href="https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&amp;ct=github_readme_zh&amp;mt=8"><img src="https://img.shields.io/badge/Mac%20App%20Store-Free-0D96F6?style=flat-square&logo=apple&logoColor=white" alt="Mac App Store 上的 Clipbara"></a>
 </p>
 
 <p align="center">
@@ -60,7 +60,7 @@ Clipbara 是一款免费开源（GPL-3.0）的 macOS 剪贴板管理器，用原
 
 ## 安装
 
-要求 **macOS 14 Sonoma 或更高版本**。DMG 和 Homebrew 版本免费；Mac App Store 版本可免费试用 7 天，之后一次性买断，同时解锁 iPhone 版。在 1.5 版之前购买或在限免期间下载的用户无需再次付费。
+要求 **macOS 14 Sonoma 或更高版本**。DMG、Homebrew、Mac App Store 和 iPhone 版都是免费的。
 
 ### Mac App Store
 
@@ -82,7 +82,7 @@ DMG 已使用 Apple Developer ID 签名并通过 Apple 公证（自 v1.1.11 起�
 
 ### iPhone
 
-[iPhone 版 Clipbara](https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&ct=github_readme_zh&mt=8) 与 Mac 版是同一次购买，需要 iOS 26 或更高版本。
+[iPhone 版 Clipbara](https://apps.apple.com/app/apple-store/id6803537696?pt=129317403&ct=github_readme_zh&mt=8) 免费，需要 iOS 26 或更高版本。
 
 - **同步**：在 Mac 的「通用」设置和 iPhone 的「同步」设置中都开启 **iCloud Sync**。在列表上下拉即可立即同步。
 - **键盘**：在 **设置 → App → Clipbara → 键盘** 中添加 Clipbara 键盘，用地球键切换后轻点剪贴内容即可插入。键盘没有字母键，不开启「完全访问」也能使用；「完全访问」只用于在应用关闭时从 iCloud 读取你自己的剪贴内容。

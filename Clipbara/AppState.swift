@@ -74,9 +74,6 @@ final class AppState {
         }
         clipboardMonitor.start(modelContext: modelContext)
         ReviewPrompter.noteLaunch()
-        #if APPSTORE
-        Entitlements.shared.start()
-        #endif
         panelController.onPanelWillHide = { [weak self] in
             self?.searchState.clearSession()
             self?.previewItem = nil
@@ -96,24 +93,10 @@ final class AppState {
 
     func togglePanel() {
         guard let container = modelContainer else { return }
-        #if APPSTORE
-        // Without an active trial or unlock, offer it instead of the history.
-        // Clipboard capture keeps running, so nothing is lost in the meantime.
-        if !panelController.isPresented, !Entitlements.shared.checkHistoryAccess() {
-            PaywallWindowController.shared.show()
-            return
-        }
-        #endif
         panelController.toggle(modelContainer: container, appState: self)
     }
 
     func toggleClipQueue() {
-        #if APPSTORE
-        if !clipQueue.isActive, !Entitlements.shared.checkHistoryAccess() {
-            PaywallWindowController.shared.show()
-            return
-        }
-        #endif
         clipQueue.toggle()
     }
 

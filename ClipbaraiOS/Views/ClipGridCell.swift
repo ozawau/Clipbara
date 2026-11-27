@@ -82,7 +82,6 @@ struct ClipGridCell: View {
         if ui.isSelecting {
             withAnimation(.snappy(duration: 0.2)) { ui.toggleSelection(item) }
         } else {
-            guard PaywallPresenter.shared.requireAccess() else { return }
             library.copy(item)
             ui.show(String(localized: "Copied"))
         }
@@ -94,7 +93,6 @@ struct ClipGridCell: View {
     private var menu: some View {
         ControlGroup {
             Button {
-                guard PaywallPresenter.shared.requireAccess() else { return }
                 library.copy(item)
                 ui.show(String(localized: "Copied"))
             } label: {
@@ -102,7 +100,6 @@ struct ClipGridCell: View {
             }
             if item.canCopyAsPlainText {
                 Button {
-                    guard PaywallPresenter.shared.requireAccess() else { return }
                     library.copy(item, asPlainText: true)
                     ui.show(String(localized: "Copied as Plain Text"))
                 } label: {
