@@ -10,12 +10,28 @@ struct SettingsView: View {
 
     @State private var confirmClear = false
     @State private var showsSetupGuide = false
+    @AppStorage(AppLanguage.defaultsKey) private var appLanguage = AppLanguage.system.rawValue
+    @State private var pendingLanguageRelaunch = false
 
     private let limits = [100, 250, 500, 1000, 0]
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Language", selection: $appLanguage) {
+                        ForEach(AppLanguage.supported) { language in
+                            Text(language.nativeName).tag(language.rawValue)
+                        }
+                    }
+                    .onChange(of: appLanguage) { _, _ in
+                        AppLanguage(rawValue: appLanguage)?.apply()
+                        pendingLanguageRelaunch = true
+                    }
+                } footer: {
+                    Text("Follows System Settings. Relaunch Clipbara to apply a new language.")
+                }
+
                 Section {
                     Toggle("Save Clipboard When Opening", isOn: $autoSaveOnOpen)
                 } footer: {
@@ -65,6 +81,11 @@ struct SettingsView: View {
                         Label("Privacy Policy", systemImage: "hand.raised")
                     }
                 }
+            }
+            .alert("Relaunch to Apply Language", isPresented: $pendingLanguageRelaunch) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Relaunch Clipbara to use the selected language.")
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

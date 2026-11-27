@@ -21,6 +21,8 @@ struct GeneralSettingsTab: View {
     @State private var showHiddenIconNotice = false
     @State private var transferMessage: String?
     @State private var showTransferAlert = false
+    @AppStorage(AppLanguage.defaultsKey) private var appLanguage = AppLanguage.system.rawValue
+    @State private var pendingLanguageRelaunch = false
 
     var body: some View {
         Form {
@@ -110,6 +112,21 @@ struct GeneralSettingsTab: View {
                 if current != hasPastePermission { hasPastePermission = current }
             }
 
+            Picker("Language", selection: $appLanguage) {
+                ForEach(AppLanguage.supported) { language in
+                    Text(language.nativeName).tag(language.rawValue)
+                }
+            }
+            .pickerStyle(.menu)
+            .onChange(of: appLanguage) { _, _ in
+                AppLanguage(rawValue: appLanguage)?.apply()
+                pendingLanguageRelaunch = true
+            }
+
+            Text("Follows System Settings. Relaunch Clipbara to apply a new language.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
             Picker("History Limit", selection: $historyLimit) {
                 Text("100").tag(100)
                 Text("500").tag(500)
@@ -192,6 +209,12 @@ struct GeneralSettingsTab: View {
         }
         .formStyle(.grouped)
         .padding()
+        .alert("Relaunch to Apply Language", isPresented: $pendingLanguageRelaunch) {
+            Button("Relaunch") { AppLanguage.relaunch() }
+            Button("Later", role: .cancel) {}
+        } message: {
+            Text("Relaunch Clipbara to use the selected language.")
+        }
         .alert("Backup", isPresented: $showTransferAlert, presenting: transferMessage) { _ in
             Button("OK", role: .cancel) {}
         } message: { message in

@@ -8,6 +8,16 @@ import UIKit
 /// from their private iCloud. It never reads or sends what is typed in other apps.
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
+
+    override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
+        AppLanguage.installPreferredLanguageForThisProcess()
+        super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
+    }
+
+    required init?(coder: NSCoder) {
+        AppLanguage.installPreferredLanguageForThisProcess()
+        super.init(coder: coder)
+    }
     private var hostingController: UIHostingController<KeyboardRootView>?
 
     override func loadView() {
