@@ -80,9 +80,12 @@ final class ClipboardMonitor {
             .compactMap { String(format: "%02x", $0) }
             .joined()
 
-        // Duplicate check within last 10 seconds
-        if let recent = recentDuplicate(hash: hash) {
-            onCapture?(recent)
+        // Same content again: move the existing clip to the front instead of duplicating it.
+        if let existing = existingClip(hash: hash) {
+            existing.copiedAt = Date()
+            try? modelContext?.save()
+            refreshLatestItems()
+            onCapture?(existing)
             return
         }
 
@@ -144,11 +147,10 @@ final class ClipboardMonitor {
         try? modelContext.save()
     }
 
-    private func recentDuplicate(hash: String) -> ClipboardItem? {
+    private func existingClip(hash: String) -> ClipboardItem? {
         guard let modelContext else { return nil }
-        let tenSecondsAgo = Date().addingTimeInterval(-10)
         let predicate = #Predicate<ClipboardItem> { item in
-            item.contentHash == hash && item.copiedAt > tenSecondsAgo
+            item.contentHash == hash
         }
         var descriptor = FetchDescriptor<ClipboardItem>(predicate: predicate)
         descriptor.fetchLimit = 1
